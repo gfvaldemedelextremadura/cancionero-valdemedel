@@ -316,8 +316,63 @@ body.performing .performance-credit{grid-column:1/-1;display:block;line-height:1
  body.performing .performance-meta{font-size:10px}
 }
 
-/* v4.3: indicaciones de voces y repeticiones */
-.inline-voice{display:inline-block;margin-left:.25em;padding:.16em .48em;border-radius:.55em;color:#fff;font:800 .66em/1.2 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;vertical-align:.14em;letter-spacing:.02em}
-.inline-voice.voice-H{background:#2563eb}.inline-voice.voice-M{background:#d9468d}.inline-voice.voice-T{background:#7a1637}
-.repeat-tag,.repeat-line{display:inline-block;padding:.13em .48em;border-radius:.55em;background:#f7c948;color:#3b2b00;font:850 .7em/1.25 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;letter-spacing:.04em}
-.repeat-line{margin:.12em 0 .18em}
+/* v4.4 · desplazamiento de la partitura al ampliar la letra */
+body.performing .performance-lyrics.is-scrollable{
+  overflow:auto!important;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  touch-action:pan-x pan-y;
+  scrollbar-gutter:stable;
+  cursor:grab;
+}
+body.performing .performance-lyrics.is-scrollable.is-dragging{cursor:grabbing;user-select:none}
+body.performing .performance-columns.is-zoomed{
+  height:auto;
+  min-height:100%;
+  align-items:start;
+}
+body.performing .performance-columns.is-zoomed .performance-column{
+  min-height:100%;
+  overflow:visible!important;
+}
+body.performing .performance-lyrics.is-scrollable:after{
+  content:'Desliza para moverte por la letra';
+  position:sticky;
+  left:50%;
+  bottom:8px;
+  display:block;
+  width:max-content;
+  max-width:calc(100% - 20px);
+  margin:10px auto 0;
+  padding:5px 9px;
+  border-radius:999px;
+  background:rgba(111,23,51,.88);
+  color:#fff;
+  font:700 11px/1.2 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;
+  pointer-events:none;
+  opacity:.82;
+}
+@media(max-width:700px){
+  body.performing .performance-head{grid-template-columns:minmax(0,1fr);align-items:start}
+  body.performing .performance-actions{width:100%;justify-content:flex-start;overflow-x:auto;padding-bottom:1px;scrollbar-width:none}
+  body.performing .performance-actions::-webkit-scrollbar{display:none}
+  body.performing .performance-actions .font-control{display:inline-flex!important}
+  body.performing .performance-actions .perf-btn{flex:0 0 auto}
+  body.performing .performance-lyrics.is-scrollable:after{font-size:10px;bottom:5px}
+}
+
+/* v4.5 - reparaciones de canciones y ventanas en modo actuacion */
+body.performing > .modal{
+  z-index:5000!important;
+}
+body.performing > .modal .modal-card{
+  position:relative;
+  z-index:5001;
+}
+.bracket-heading{
+  margin:0 0 6px;
+  width:max-content;
+  padding:3px 8px 3px 3px;
+  border-radius:999px;
+  background:rgba(111,23,51,.08);
+}
