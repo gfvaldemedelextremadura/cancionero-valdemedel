@@ -1,4 +1,4 @@
-# Cancionero Valdemedel v4.0
+# Cancionero Valdemedel v4.7
 
 - Letra completa y orden correcto de Rondeña Cacereña + Verata.
 - Se mantiene la estructura de acordes indicada por el grupo.
@@ -29,3 +29,19 @@ Las fotografias estan en la raiz para facilitar la subida directa desde GitHub w
 - Ronda de los Pueblos de Gredos completada con los versos repetidos que faltaban.
 - Reparado el botón +Info en modo actuación: la ventana se muestra por encima de la partitura.
 - Migración automática para instalaciones anteriores sin cambiar la estructura de acordes.
+
+
+## Corrección v4.6
+
+- La creación del PDF ya no depende de ventanas emergentes.
+- Se abre una vista previa integrada dentro de la aplicación.
+- Incluye botones para imprimir/guardar como PDF, abrir aparte y cerrar.
+- Corregida la carga del logotipo y el renderizado de una canción por pagina.
+
+
+## Corrección v4.7
+
+- Restaurada la letra completa de «Jota Coplillas de Pique» según el PDF original.
+- Se incluyen las seis coplas y todas sus respuestas.
+- Indicaciones de voces visibles antes de cada copla: [M], [H] y [T].
+- Migración automática para corregir instalaciones que conservaban una versión incompleta.
