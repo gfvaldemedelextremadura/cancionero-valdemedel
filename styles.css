@@ -273,3 +273,51 @@ main{max-width:1120px;padding-top:20px}.apple-hero{position:relative;min-height:
 
 /* v4.1 · permisos, voces, anotaciones y firma */
 [hidden]{display:none!important}.viewer-notice{padding:12px 14px;border-radius:16px;background:rgba(122,22,55,.08);color:var(--muted);margin-bottom:14px}.app-credit{text-align:center;color:var(--muted);font-size:12px;padding:18px 16px 88px}.formatted-lyrics{white-space:pre-wrap}.voice-line{display:flex;align-items:flex-start;gap:.55em;min-height:1.35em}.voice-badge{display:inline-grid;place-items:center;flex:0 0 auto;width:1.55em;height:1.55em;border-radius:.48em;font:800 .78em/1 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;color:#fff;margin-top:.02em}.voice-H{background:#2563eb}.voice-M{background:#d9468d}.voice-T{background:#7a1637}.voice-heading{margin:.35em 0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif}.note-btn{background:#fff8df;color:#8a5a00;border-color:#e2bd55}.note-btn.active,.annotation-perf.has-annotation{background:#ffcc4d!important;color:#3c2900!important;border-color:#d39d00!important}.repertoire-item.has-note{box-shadow:inset 4px 0 #e6ad17}.annotation-indicator{color:#9a6500;font-weight:800}.annotation-card textarea{width:100%;min-height:180px;resize:vertical;font:16px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif}.annotation-read{padding:16px;border-radius:16px;background:var(--surface-2);line-height:1.55}.performance-credit{font-size:10px;color:#786d72;text-align:center;white-space:nowrap}.performance-nav{flex-wrap:wrap}.performance-credit{flex-basis:100%}@media(max-width:620px){.performance-actions .font-control{display:none!important}.performance-actions .info-perf,.performance-actions .annotation-perf,.performance-actions .close-perf{display:inline-flex!important;align-items:center}.performance-actions{gap:4px}.performance-actions .perf-btn{padding:7px 8px}.performance-actions .perf-btn span{display:none}.song-info-card{width:min(94vw,680px);max-height:86dvh;overflow:auto}.performance-credit{font-size:9px}.performance-head h1{font-size:clamp(18px,5.5vw,28px)}}
+
+/* v4.2 · reparación robusta del modo actuación en escritorio y móvil */
+body.performing{padding:0!important;overflow:hidden!important;background:#fff!important}
+body.performing .topbar,
+body.performing .bottom-nav,
+body.performing>.app-credit{display:none!important}
+body.performing main#app{position:fixed!important;inset:0!important;z-index:1000!important;width:100%!important;height:100dvh!important;max-width:none!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#fff!important}
+body.performing .performance-screen{position:absolute;inset:0;width:100%;height:100%;min-height:0;overflow:hidden;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;background:#fff;color:#171214}
+body.performing .performance-head{position:relative;z-index:3;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:max(8px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) 7px max(10px,env(safe-area-inset-left));background:#fff;border-bottom:2px solid #6f1733}
+body.performing .performance-head>div:first-child{min-width:0}
+body.performing .performance-head h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:clamp(19px,4vw,38px)}
+body.performing .performance-actions{display:flex!important;align-items:center;justify-content:flex-end;flex-wrap:nowrap;gap:5px;min-width:max-content}
+body.performing .performance-actions .perf-btn{display:inline-flex!important;align-items:center;justify-content:center;min-height:38px;padding:7px 9px;white-space:nowrap}
+body.performing .performance-chords{position:relative;z-index:2;display:block!important;min-height:32px;padding:6px max(10px,env(safe-area-inset-right)) 6px max(10px,env(safe-area-inset-left));background:#fff3c9;border-bottom:1px solid #d7bd83;color:#36270c;font-weight:750;white-space:normal;overflow:auto;line-height:1.25}
+body.performing .performance-lyrics{min-height:0;height:auto;overflow:hidden;padding:8px max(9px,env(safe-area-inset-right)) 3px max(9px,env(safe-area-inset-left))}
+body.performing .performance-nav{position:relative;z-index:3;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;padding:6px max(9px,env(safe-area-inset-right)) max(5px,env(safe-area-inset-bottom)) max(9px,env(safe-area-inset-left));background:#faf8f9;border-top:1px solid #ddd}
+body.performing .performance-nav>span{text-align:center}
+body.performing .performance-credit{grid-column:1/-1;display:block;line-height:1.15;margin-top:-1px}
+
+@media(max-width:700px){
+ body.performing .performance-head{grid-template-columns:minmax(0,1fr) auto;padding-top:max(6px,env(safe-area-inset-top))}
+ body.performing .performance-head h1{font-size:clamp(17px,5.2vw,25px)}
+ body.performing .performance-meta{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ body.performing .performance-actions{gap:3px}
+ body.performing .performance-actions .font-control{display:none!important}
+ body.performing .performance-actions .perf-btn{min-width:36px;min-height:34px;padding:5px 7px;font-size:14px;border-radius:9px}
+ body.performing .performance-actions .perf-btn span{display:none!important}
+ body.performing .close-perf{font-size:0!important;width:36px}
+ body.performing .close-perf:after{content:'×';font-size:22px;line-height:1}
+ body.performing .performance-chords{min-height:29px;padding-top:4px;padding-bottom:4px;font-size:12px;max-height:58px}
+ body.performing .performance-lyrics{padding-top:5px}
+ body.performing .performance-nav{padding-top:4px;gap:5px}
+ body.performing .perf-nav{padding:7px 8px;font-size:12px}
+ body.performing .performance-credit{font-size:8px}
+}
+
+@media(max-width:390px){
+ body.performing .performance-head{gap:4px}
+ body.performing .performance-actions .perf-btn{min-width:32px;width:32px;padding:4px}
+ body.performing .performance-head h1{font-size:17px}
+ body.performing .performance-meta{font-size:10px}
+}
+
+/* v4.3: indicaciones de voces y repeticiones */
+.inline-voice{display:inline-block;margin-left:.25em;padding:.16em .48em;border-radius:.55em;color:#fff;font:800 .66em/1.2 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;vertical-align:.14em;letter-spacing:.02em}
+.inline-voice.voice-H{background:#2563eb}.inline-voice.voice-M{background:#d9468d}.inline-voice.voice-T{background:#7a1637}
+.repeat-tag,.repeat-line{display:inline-block;padding:.13em .48em;border-radius:.55em;background:#f7c948;color:#3b2b00;font:850 .7em/1.25 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;letter-spacing:.04em}
+.repeat-line{margin:.12em 0 .18em}
