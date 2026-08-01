@@ -62,10 +62,18 @@ Sube todos los archivos a la raíz del repositorio. Vercel desplegará la aplica
 - `vercel.json`
 
 
-## Versión 4.10
+## Versión 4.11
 
 Se corrige el modo actuación para canciones largas. La aplicación detecta ahora el contenido oculto dentro de cada columna y activa automáticamente el desplazamiento, de modo que Coplillas de Pique y cualquier otra letra extensa pueden recorrerse completas en ordenador, móvil y tableta.
 
 ## CONFIGURADO CON SUPABASE
 
 Este paquete ya incluye la URL del proyecto, la Publishable key y el correo administrador de Valdemedel. Antes de publicar, ejecuta `supabase-setup.sql` una sola vez en el SQL Editor de Supabase y crea/confirma el usuario administrador en Authentication > Users.
+
+
+## Cambios v4.11
+- Supabase confirma cada alta o modificación antes de mostrar el mensaje de éxito.
+- Las actuaciones antiguas del dispositivo se ofrecen para publicación al iniciar como administrador.
+- Cada actuación compartida muestra la etiqueta «☁ Compartida».
+- Botón «Comprobar conexión» con recuento de actuaciones visibles.
+- Si falla la publicación, el repertorio y las anotaciones permanecen abiertos para no perder cambios.
