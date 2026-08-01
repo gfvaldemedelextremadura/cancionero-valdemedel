@@ -77,3 +77,9 @@ Este paquete ya incluye la URL del proyecto, la Publishable key y el correo admi
 - Cada actuación compartida muestra la etiqueta «☁ Compartida».
 - Botón «Comprobar conexión» con recuento de actuaciones visibles.
 - Si falla la publicación, el repertorio y las anotaciones permanecen abiertos para no perder cambios.
+
+
+## Versión 4.13
+- Botón global ↻ para actualizar actuaciones y comprobar una versión nueva de la app.
+- Actualización automática al volver a la app, recuperar conexión o enfocar la ventana.
+- Comprobación periódica de actuaciones cada 30 segundos mientras la app está visible.

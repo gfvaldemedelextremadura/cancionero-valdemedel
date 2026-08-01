@@ -381,4 +381,25 @@ function renderSettings(){if(!state.isAdmin)return nav('library');const legacy=l
 function exportBackup(){const data={version:2,exportedAt:new Date().toISOString(),songs:state.songs,rep:state.rep,performances:state.performances,repAnnotations:state.repAnnotations};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='copia-cancionero-valdemedel-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(a.href)}
 $('#importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(!Array.isArray(data.songs))throw Error();if(!confirm('¿Importar esta copia y sustituir los datos actuales?'))return;state.songs=data.songs;state.rep=Array.isArray(data.rep)?data.rep:[];state.performances=Array.isArray(data.performances)?data.performances:[];state.repAnnotations=data.repAnnotations&&typeof data.repAnnotations==='object'?data.repAnnotations:{};persist();toast('Copia importada');nav('library')}catch{alert('El archivo no es una copia válida.')}e.target.value=''};
 function $(q){return document.querySelector(q)}function $$(q){return [...document.querySelectorAll(q)]}
-$$('.bottom-nav button').forEach(b=>b.onclick=()=>nav(b.dataset.view));$('#homeBtn').onclick=()=>nav('library');$('#themeBtn').onclick=()=>{document.body.classList.toggle('dark');localStorage.setItem(STORAGE.theme,document.body.classList.contains('dark'))};$('#backupBtn').onclick=()=>{if(requireAdmin())exportBackup()};$('#adminBtn').onclick=adminLogin;if(localStorage.getItem(STORAGE.theme)==='true')document.body.classList.add('dark');renderChrome();render();initCloud();if('serviceWorker'in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+async function forceAppRefresh(){
+ const btn=$('#refreshAppBtn');
+ if(btn){btn.disabled=true;btn.classList.add('is-refreshing');}
+ try{
+  if(CLOUD_ENABLED&&cloudClient) await refreshCloudPerformances({silent:true});
+  if('serviceWorker' in navigator){
+   const reg=await navigator.serviceWorker.getRegistration();
+   if(reg){await reg.update();}
+  }
+  toast('Aplicación y actuaciones actualizadas');
+  render();
+ }catch(err){console.error(err);alert('No se ha podido actualizar: '+(err?.message||'error desconocido'))}
+ finally{if(btn){btn.disabled=false;btn.classList.remove('is-refreshing')}}
+}
+function startAutomaticCloudRefresh(){
+ const refresh=()=>{if(document.visibilityState==='visible'&&CLOUD_ENABLED&&cloudClient)refreshCloudPerformances({silent:true})};
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refresh()});
+ window.addEventListener('focus',refresh);
+ window.addEventListener('online',refresh);
+ setInterval(refresh,30000);
+}
+$$('.bottom-nav button').forEach(b=>b.onclick=()=>nav(b.dataset.view));$('#homeBtn').onclick=()=>nav('library');if($('#refreshAppBtn'))$('#refreshAppBtn').onclick=forceAppRefresh;$('#themeBtn').onclick=()=>{document.body.classList.toggle('dark');localStorage.setItem(STORAGE.theme,document.body.classList.contains('dark'))};$('#backupBtn').onclick=()=>{if(requireAdmin())exportBackup()};$('#adminBtn').onclick=adminLogin;if(localStorage.getItem(STORAGE.theme)==='true')document.body.classList.add('dark');renderChrome();render();initCloud();startAutomaticCloudRefresh();if('serviceWorker'in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(()=>{});

@@ -419,3 +419,7 @@ body.performing .performance-lyrics.is-scrollable::-webkit-scrollbar-thumb{backg
 
 /* v4.11 · Confirmación visual de sincronización */
 .performance-title-row{display:flex;align-items:center;justify-content:space-between;gap:10px}.performance-title-row h3{margin:0}.shared-badge{display:inline-flex;align-items:center;gap:4px;flex:0 0 auto;padding:5px 9px;border-radius:999px;background:rgba(40,120,75,.11);color:#28784b;font-size:12px;font-weight:800;border:1px solid rgba(40,120,75,.2)}.dark .shared-badge{background:rgba(83,190,126,.12);color:#72d69a;border-color:rgba(114,214,154,.22)}
+
+.refresh-app-btn{font-size:1.25rem;font-weight:700}
+.refresh-app-btn.is-refreshing{animation:vm-spin .75s linear infinite}
+@keyframes vm-spin{to{transform:rotate(360deg)}}
