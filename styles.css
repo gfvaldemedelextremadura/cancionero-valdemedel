@@ -400,3 +400,19 @@ body.pdf-preview-open{overflow:hidden}
 .editing-performance-notice span{font-size:.9rem;color:var(--muted)}
 .dark .editing-performance-notice{background:rgba(255,255,255,.08)}
 @media(max-width:640px){.editing-performance-notice{padding:12px}.performance .toolbar .btn{flex:1 1 auto}}
+
+
+/* v4.9 · actuaciones compartidas */
+.sync-banner{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 18px;padding:14px 16px;border-radius:18px;border:1px solid var(--line);background:rgba(255,255,255,.72);box-shadow:var(--shadow-soft)}
+.sync-banner strong{display:block;color:var(--text)}.sync-banner span{flex:1;min-width:220px;color:var(--muted);font-size:.92rem}.sync-banner.online{border-color:rgba(48,145,92,.28);background:rgba(235,250,241,.82)}.sync-banner.loading{border-color:rgba(183,140,67,.32);background:rgba(255,248,232,.86)}.sync-banner.error{border-color:rgba(184,54,54,.28);background:rgba(255,238,238,.9)}.sync-banner.local{border-color:rgba(111,23,51,.2)}
+.sync-migration{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 18px;padding:15px 17px;border-radius:18px;background:linear-gradient(135deg,rgba(111,23,51,.1),rgba(183,140,67,.14));border:1px solid rgba(111,23,51,.16)}.sync-migration div{display:grid;gap:4px}.sync-migration span{color:var(--muted);font-size:.9rem}.cloud-ok{display:inline-block;margin-top:8px;color:#28784b;font-weight:700}.admin-login-card{max-width:480px}.admin-login-help{margin-top:-4px;color:var(--muted)}.login-error{margin:12px 0;padding:10px 12px;border-radius:12px;background:#fff0f0;color:#9b2525;border:1px solid #efc1c1;font-size:.92rem}
+.dark .sync-banner,.dark .sync-migration{background:rgba(36,30,33,.92)}.dark .sync-banner.online{background:rgba(26,55,40,.82)}.dark .sync-banner.error{background:rgba(70,28,31,.82)}
+@media(max-width:640px){.sync-banner,.sync-migration{align-items:flex-start;flex-direction:column}.sync-banner span{min-width:0}.sync-banner .btn,.sync-migration .btn{width:100%}}
+
+
+/* v4.10 · canciones largas completas en modo actuación */
+body.performing .performance-columns.is-zoomed{padding-bottom:38px}
+body.performing .performance-lyrics.is-scrollable{scrollbar-width:auto}
+body.performing .performance-lyrics.is-scrollable::-webkit-scrollbar{width:9px;height:9px}
+body.performing .performance-lyrics.is-scrollable::-webkit-scrollbar-thumb{background:rgba(111,23,51,.46);border-radius:999px}
+@media(max-width:700px){body.performing .performance-columns.is-zoomed{padding-bottom:44px}}
