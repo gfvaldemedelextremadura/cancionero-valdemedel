@@ -423,3 +423,10 @@ body.performing .performance-lyrics.is-scrollable::-webkit-scrollbar-thumb{backg
 .refresh-app-btn{font-size:1.25rem;font-weight:700}
 .refresh-app-btn.is-refreshing{animation:vm-spin .75s linear infinite}
 @keyframes vm-spin{to{transform:rotate(360deg)}}
+/* v4.15 · modo sin conexión */
+.sync-banner.offline{border-color:#d49a35;background:#fff8e8;color:#684717}
+.offline-badge{display:inline-flex;align-items:center;gap:5px;padding:6px 10px;border-radius:999px;background:#fff4d6;color:#8a5a00;border:1px solid #ebc36e;font-weight:800;font-size:.82rem}
+.performance-badges{display:flex;flex-wrap:wrap;gap:7px;justify-content:flex-end}
+body.dark .sync-banner.offline{background:#3a2d13;color:#ffe5a3;border-color:#86651d}
+body.dark .offline-badge{background:#3a2d13;color:#ffe5a3;border-color:#86651d}
+@media(max-width:640px){.performance-title-row{align-items:flex-start}.performance-badges{justify-content:flex-start}.performance .toolbar .btn{flex:1 1 auto}}

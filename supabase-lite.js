@@ -125,7 +125,6 @@
       };
       if (body !== undefined) headers['Content-Type'] = 'application/json';
       if (prefer) headers.Prefer = prefer;
-      if (method === 'GET') query.set('_vmts', String(Date.now()));
       const queryString = query.toString();
       const url = baseUrl + '/rest/v1/' + encodeURIComponent(table) + (queryString ? '?' + queryString : '');
       let response;

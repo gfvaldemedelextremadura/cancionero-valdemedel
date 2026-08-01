@@ -83,3 +83,8 @@ Este paquete ya incluye la URL del proyecto, la Publishable key y el correo admi
 - Botón global ↻ para actualizar actuaciones y comprobar una versión nueva de la app.
 - Actualización automática al volver a la app, recuperar conexión o enfocar la ventana.
 - Comprobación periódica de actuaciones cada 30 segundos mientras la app está visible.
+
+## Versión 4.15
+- Corrige el error `failed to parse filter (...)` causado por un parámetro de caché incompatible con PostgREST.
+- Añade copia de actuaciones para uso sin conexión.
+- Las actuaciones descargadas pueden abrirse y usarse en modo actuación sin Internet.
