@@ -392,3 +392,11 @@ body.pdf-preview-open{overflow:hidden}
  .pdf-preview-actions{display:grid;grid-template-columns:1fr 1.35fr .8fr;gap:6px}
  .pdf-preview-actions .btn{width:100%;min-height:40px;padding:8px 7px;font-size:.78rem;white-space:normal;line-height:1.08}
 }
+
+/* v4.8 · Edición de actuaciones guardadas */
+.editing-performance-card{border:1px solid rgba(122,22,55,.28);box-shadow:0 12px 34px rgba(122,22,55,.08)}
+.editing-performance-notice{display:flex;flex-direction:column;gap:4px;margin:-2px 0 18px;padding:13px 15px;border-radius:14px;background:rgba(122,22,55,.08);color:var(--text)}
+.editing-performance-notice strong{color:var(--primary)}
+.editing-performance-notice span{font-size:.9rem;color:var(--muted)}
+.dark .editing-performance-notice{background:rgba(255,255,255,.08)}
+@media(max-width:640px){.editing-performance-notice{padding:12px}.performance .toolbar .btn{flex:1 1 auto}}

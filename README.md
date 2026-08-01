@@ -1,4 +1,4 @@
-# Cancionero Valdemedel v4.7
+# Cancionero Valdemedel v4.8
 
 - Letra completa y orden correcto de Rondeña Cacereña + Verata.
 - Se mantiene la estructura de acordes indicada por el grupo.
@@ -45,3 +45,12 @@ Las fotografias estan en la raiz para facilitar la subida directa desde GitHub w
 - Se incluyen las seis coplas y todas sus respuestas.
 - Indicaciones de voces visibles antes de cada copla: [M], [H] y [T].
 - Migración automática para corregir instalaciones que conservaban una versión incompleta.
+
+
+## Mejora v4.8
+
+- El administrador puede abrir una actuación guardada en modo edición.
+- Se pueden cambiar nombre, fecha, lugar, canciones, orden y anotaciones.
+- «Guardar cambios» actualiza la actuación original sin crear un duplicado.
+- Se incorpora «Cancelar edición» para salir sin modificar la actuación guardada.
+- Las anotaciones del repertorio temporal se guardan correctamente en el navegador.
