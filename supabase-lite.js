@@ -80,7 +80,8 @@
         response = await fetch(baseUrl + path, {
           method: 'POST',
           headers,
-          body: body === undefined ? undefined : JSON.stringify(body)
+          body: body === undefined ? undefined : JSON.stringify(body),
+          cache: 'no-store'
         });
       } catch (error) {
         throw makeError('No se ha podido conectar con Supabase. Comprueba la conexión a Internet.', 0, error);
@@ -124,6 +125,7 @@
       };
       if (body !== undefined) headers['Content-Type'] = 'application/json';
       if (prefer) headers.Prefer = prefer;
+      if (method === 'GET') query.set('_vmts', String(Date.now()));
       const queryString = query.toString();
       const url = baseUrl + '/rest/v1/' + encodeURIComponent(table) + (queryString ? '?' + queryString : '');
       let response;
@@ -131,7 +133,8 @@
         response = await fetch(url, {
           method,
           headers,
-          body: body === undefined ? undefined : JSON.stringify(body)
+          body: body === undefined ? undefined : JSON.stringify(body),
+          cache: 'no-store'
         });
       } catch (error) {
         throw makeError('No se ha podido conectar con la base de datos compartida.', 0, error);
@@ -265,7 +268,7 @@
         on(event, filter, handler) { callback = handler; return api; },
         subscribe(statusCallback) {
           const notify = () => { if (callback) callback({ eventType: 'POLL' }); };
-          timer = setInterval(notify, 15000);
+          timer = setInterval(notify, 5000);
           visibilityHandler = () => { if (document.visibilityState === 'visible') notify(); };
           onlineHandler = notify;
           document.addEventListener('visibilitychange', visibilityHandler);

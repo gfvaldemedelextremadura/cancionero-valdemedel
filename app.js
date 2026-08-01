@@ -298,12 +298,14 @@ async function savePerformance(){
    const confirmed=await upsertCloudPerformance(saved),i=state.performances.findIndex(p=>p.id===confirmed.id);
    if(i>=0)state.performances[i]=confirmed;else state.performances.unshift(confirmed);
    const pending=localPerformanceBackup().filter(p=>String(p.id)!==String(confirmed.id));localStorage.setItem(LOCAL_PERFORMANCE_BACKUP_KEY,JSON.stringify(pending));persist();
-   await refreshCloudPerformances({silent:true});
-   if(!state.performances.some(p=>String(p.id)===String(confirmed.id)))throw new Error('La actuación se guardó, pero no se ha podido comprobar en la lista compartida. Pulsa «Actualizar» en Actuaciones.');
+   // El registro ya ha sido confirmado por Supabase mediante return=representation.
+   // No volvemos a consultar inmediatamente porque algunos navegadores reutilizan
+   // durante unos segundos una respuesta GET anterior y podrían ocultar el registro recién guardado.
+   state.cloudLastSync=new Date().toISOString();
   }else{
    if(editing){const i=state.performances.findIndex(p=>p.id===editing.id);state.performances[i]=saved}else state.performances.unshift(saved);persist();
   }
-  state.editingPerformanceId=null;state.performanceDraft=null;state.rep=[];state.repAnnotations={};toast(editing?'Cambios confirmados en Supabase':'Actuación confirmada en Supabase');nav('performances')
+  state.editingPerformanceId=null;state.performanceDraft=null;state.rep=[];state.repAnnotations={};toast(editing?'Cambios publicados para todo el grupo':'Actuación publicada para todo el grupo');nav('performances')
  }catch(err){console.error('No se pudo guardar la actuación',err);alert('No se pudo publicar la actuación. El repertorio sigue abierto para que no pierdas los cambios. Motivo: '+(err?.message||'error desconocido'))}
 }
 function startPerformanceEdit(id){
@@ -400,6 +402,6 @@ function startAutomaticCloudRefresh(){
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refresh()});
  window.addEventListener('focus',refresh);
  window.addEventListener('online',refresh);
- setInterval(refresh,30000);
+ setInterval(refresh,5000);
 }
 $$('.bottom-nav button').forEach(b=>b.onclick=()=>nav(b.dataset.view));$('#homeBtn').onclick=()=>nav('library');if($('#refreshAppBtn'))$('#refreshAppBtn').onclick=forceAppRefresh;$('#themeBtn').onclick=()=>{document.body.classList.toggle('dark');localStorage.setItem(STORAGE.theme,document.body.classList.contains('dark'))};$('#backupBtn').onclick=()=>{if(requireAdmin())exportBackup()};$('#adminBtn').onclick=adminLogin;if(localStorage.getItem(STORAGE.theme)==='true')document.body.classList.add('dark');renderChrome();render();initCloud();startAutomaticCloudRefresh();if('serviceWorker'in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(()=>{});
