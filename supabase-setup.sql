@@ -38,6 +38,7 @@ using (true);
 
 -- Escritura exclusiva para el correo administrador autenticado.
 drop policy if exists "Administrador crea actuaciones" on public.performances;
+drop policy if exists "Dirección crea actuaciones" on public.performances;
 create policy "Administrador crea actuaciones"
 on public.performances
 for insert
@@ -47,6 +48,7 @@ with check (
 );
 
 drop policy if exists "Administrador modifica actuaciones" on public.performances;
+drop policy if exists "Dirección modifica actuaciones" on public.performances;
 create policy "Administrador modifica actuaciones"
 on public.performances
 for update
@@ -59,6 +61,7 @@ with check (
 );
 
 drop policy if exists "Administrador elimina actuaciones" on public.performances;
+drop policy if exists "Dirección elimina actuaciones" on public.performances;
 create policy "Administrador elimina actuaciones"
 on public.performances
 for delete
@@ -124,10 +127,13 @@ on conflict (id) do update set public=true,file_size_limit=20971520,allowed_mime
 drop policy if exists "PDF bailarines lectura publica" on storage.objects;
 create policy "PDF bailarines lectura publica" on storage.objects for select to public using (bucket_id='dance-pdfs');
 drop policy if exists "Admin sube PDF bailarines" on storage.objects;
+drop policy if exists "Dirección sube PDF bailarines" on storage.objects;
 create policy "Admin sube PDF bailarines" on storage.objects for insert to authenticated with check (bucket_id='dance-pdfs' and lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
 drop policy if exists "Admin actualiza PDF bailarines" on storage.objects;
+drop policy if exists "Dirección actualiza PDF bailarines" on storage.objects;
 create policy "Admin actualiza PDF bailarines" on storage.objects for update to authenticated using (bucket_id='dance-pdfs' and lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com')) with check (bucket_id='dance-pdfs' and lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
 drop policy if exists "Admin elimina PDF bailarines" on storage.objects;
+drop policy if exists "Dirección elimina PDF bailarines" on storage.objects;
 create policy "Admin elimina PDF bailarines" on storage.objects for delete to authenticated using (bucket_id='dance-pdfs' and lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
 notify pgrst, 'reload schema';
 
@@ -182,10 +188,13 @@ grant delete on public.event_responses to authenticated;
 drop policy if exists "Grupo eventos visibles" on public.group_events;
 create policy "Grupo eventos visibles" on public.group_events for select to anon, authenticated using (true);
 drop policy if exists "Admin crea eventos grupo" on public.group_events;
+drop policy if exists "Dirección crea eventos grupo" on public.group_events;
 create policy "Admin crea eventos grupo" on public.group_events for insert to authenticated with check (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
 drop policy if exists "Admin modifica eventos grupo" on public.group_events;
+drop policy if exists "Dirección modifica eventos grupo" on public.group_events;
 create policy "Admin modifica eventos grupo" on public.group_events for update to authenticated using (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com')) with check (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
 drop policy if exists "Admin elimina eventos grupo" on public.group_events;
+drop policy if exists "Dirección elimina eventos grupo" on public.group_events;
 create policy "Admin elimina eventos grupo" on public.group_events for delete to authenticated using (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
 
 drop policy if exists "Respuestas visibles" on public.event_responses;
@@ -195,15 +204,19 @@ create policy "Componentes responden" on public.event_responses for insert to an
 drop policy if exists "Componentes actualizan respuesta" on public.event_responses;
 create policy "Componentes actualizan respuesta" on public.event_responses for update to anon, authenticated using (true) with check (char_length(member_name) between 2 and 120 and char_length(device_id) between 6 and 120);
 drop policy if exists "Admin elimina respuestas" on public.event_responses;
+drop policy if exists "Dirección elimina respuestas" on public.event_responses;
 create policy "Admin elimina respuestas" on public.event_responses for delete to authenticated using (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
 
 drop policy if exists "Avisos visibles" on public.group_notices;
 create policy "Avisos visibles" on public.group_notices for select to anon, authenticated using (true);
 drop policy if exists "Admin crea avisos" on public.group_notices;
+drop policy if exists "Dirección crea avisos" on public.group_notices;
 create policy "Admin crea avisos" on public.group_notices for insert to authenticated with check (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
 drop policy if exists "Admin modifica avisos" on public.group_notices;
+drop policy if exists "Dirección modifica avisos" on public.group_notices;
 create policy "Admin modifica avisos" on public.group_notices for update to authenticated using (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com')) with check (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
 drop policy if exists "Admin elimina avisos" on public.group_notices;
+drop policy if exists "Dirección elimina avisos" on public.group_notices;
 create policy "Admin elimina avisos" on public.group_notices for delete to authenticated using (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
 
 notify pgrst, 'reload schema';
@@ -370,8 +383,11 @@ grant execute on function public.is_valdemedel_manager() to anon, authenticated;
 
 -- Actuaciones
 drop policy if exists "Administrador crea actuaciones" on public.performances;
+drop policy if exists "Dirección crea actuaciones" on public.performances;
 drop policy if exists "Administrador modifica actuaciones" on public.performances;
+drop policy if exists "Dirección modifica actuaciones" on public.performances;
 drop policy if exists "Administrador elimina actuaciones" on public.performances;
+drop policy if exists "Dirección elimina actuaciones" on public.performances;
 create policy "Dirección crea actuaciones" on public.performances for insert to authenticated
 with check (public.is_valdemedel_manager());
 create policy "Dirección modifica actuaciones" on public.performances for update to authenticated
@@ -381,8 +397,11 @@ using (public.is_valdemedel_manager());
 
 -- Ensayos, encuestas y calendario
 drop policy if exists "Admin crea eventos grupo" on public.group_events;
+drop policy if exists "Dirección crea eventos grupo" on public.group_events;
 drop policy if exists "Admin modifica eventos grupo" on public.group_events;
+drop policy if exists "Dirección modifica eventos grupo" on public.group_events;
 drop policy if exists "Admin elimina eventos grupo" on public.group_events;
+drop policy if exists "Dirección elimina eventos grupo" on public.group_events;
 create policy "Dirección crea eventos grupo" on public.group_events for insert to authenticated
 with check (public.is_valdemedel_manager());
 create policy "Dirección modifica eventos grupo" on public.group_events for update to authenticated
@@ -392,8 +411,11 @@ using (public.is_valdemedel_manager());
 
 -- Avisos
 drop policy if exists "Admin crea avisos" on public.group_notices;
+drop policy if exists "Dirección crea avisos" on public.group_notices;
 drop policy if exists "Admin modifica avisos" on public.group_notices;
+drop policy if exists "Dirección modifica avisos" on public.group_notices;
 drop policy if exists "Admin elimina avisos" on public.group_notices;
+drop policy if exists "Dirección elimina avisos" on public.group_notices;
 create policy "Dirección crea avisos" on public.group_notices for insert to authenticated
 with check (public.is_valdemedel_manager());
 create policy "Dirección modifica avisos" on public.group_notices for update to authenticated
@@ -403,13 +425,17 @@ using (public.is_valdemedel_manager());
 
 -- Respuestas de asistencia
 drop policy if exists "Admin elimina respuestas" on public.event_responses;
+drop policy if exists "Dirección elimina respuestas" on public.event_responses;
 create policy "Dirección elimina respuestas" on public.event_responses for delete to authenticated
 using (public.is_valdemedel_manager());
 
 -- PDFs para bailarines
 drop policy if exists "Admin sube PDF bailarines" on storage.objects;
+drop policy if exists "Dirección sube PDF bailarines" on storage.objects;
 drop policy if exists "Admin actualiza PDF bailarines" on storage.objects;
+drop policy if exists "Dirección actualiza PDF bailarines" on storage.objects;
 drop policy if exists "Admin elimina PDF bailarines" on storage.objects;
+drop policy if exists "Dirección elimina PDF bailarines" on storage.objects;
 create policy "Dirección sube PDF bailarines" on storage.objects for insert to authenticated
 with check (bucket_id='dance-pdfs' and public.is_valdemedel_manager());
 create policy "Dirección actualiza PDF bailarines" on storage.objects for update to authenticated

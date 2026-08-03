@@ -118,3 +118,8 @@ Este paquete ya incluye la URL del proyecto, la Publishable key y el correo admi
 - Acceso y registro visibles al iniciar.
 - Participantes por actuación.
 - Enlaces de invitado para acceder únicamente a una actuación.
+
+
+## v4.25
+- Corrige la inicialización de Supabase y reintenta la conexión antes de abrir el acceso.
+- Actualiza la caché de la PWA para evitar que se cargue el mensaje antiguo de la v4.12.
