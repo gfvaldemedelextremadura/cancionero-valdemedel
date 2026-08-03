@@ -116,6 +116,31 @@ function applyCulturalInfoV36(){
 }
 applyCulturalInfoV36();
 const app=document.querySelector('#app');
+
+// v4.28: modal genérico para acceso, registro y gestión.
+// Algunas funciones nuevas llamaban a openModal/closeModal, pero estas utilidades
+// no estaban definidas en la versión anterior, por lo que el botón no hacía nada.
+function closeModal(){
+  const modal=document.querySelector('.modal.generic-modal');
+  if(modal)modal.remove();
+  document.body.classList.remove('modal-open');
+}
+function openModal(html){
+  closeModal();
+  const modal=document.createElement('div');
+  modal.className='modal generic-modal';
+  modal.innerHTML=html;
+  document.body.append(modal);
+  document.body.classList.add('modal-open');
+  modal.addEventListener('click',event=>{if(event.target===modal)closeModal()});
+  const escHandler=event=>{if(event.key==='Escape'){closeModal();document.removeEventListener('keydown',escHandler)}};
+  document.addEventListener('keydown',escHandler);
+  requestAnimationFrame(()=>{
+    const first=modal.querySelector('input:not([type=hidden]),select,textarea,button');
+    if(first&&typeof first.focus==='function')first.focus();
+  });
+  return modal;
+}
 function load(k,f){try{const v=localStorage.getItem(k);return v?JSON.parse(v):f}catch{return f}}
 function persist(){localStorage.setItem(STORAGE.songs,JSON.stringify(state.songs));localStorage.setItem(STORAGE.rep,JSON.stringify(state.rep));localStorage.setItem(STORAGE.performances,JSON.stringify(state.performances));localStorage.setItem(STORAGE.repAnnotations,JSON.stringify(state.repAnnotations||{}));}
 function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
