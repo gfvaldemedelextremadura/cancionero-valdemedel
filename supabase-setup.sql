@@ -130,3 +130,80 @@ create policy "Admin actualiza PDF bailarines" on storage.objects for update to 
 drop policy if exists "Admin elimina PDF bailarines" on storage.objects;
 create policy "Admin elimina PDF bailarines" on storage.objects for delete to authenticated using (bucket_id='dance-pdfs' and lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
 notify pgrst, 'reload schema';
+
+-- =========================================================
+-- v4.19 · Gestión del grupo
+-- Ensayos, encuestas, respuestas, avisos, logística y calendario.
+-- Seguro para ejecutar varias veces. No borra datos existentes.
+-- =========================================================
+create table if not exists public.group_events (
+  id text primary key,
+  kind text not null default 'rehearsal' check (kind in ('rehearsal','performance_poll')),
+  title text not null,
+  event_date date,
+  event_time time,
+  place text not null default '',
+  details text not null default '',
+  clothing text not null default '',
+  repertoire jsonb not null default '[]'::jsonb,
+  logistics jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.event_responses (
+  id text primary key,
+  event_id text not null references public.group_events(id) on delete cascade,
+  device_id text not null,
+  member_name text not null,
+  section text not null default '',
+  answer text not null check (answer in ('yes','no','maybe')),
+  transport text not null default '',
+  seats integer not null default 0,
+  notes text not null default '',
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.group_notices (
+  id text primary key,
+  title text not null,
+  body text not null,
+  event_id text,
+  important boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.group_events enable row level security;
+alter table public.event_responses enable row level security;
+alter table public.group_notices enable row level security;
+grant select on public.group_events, public.event_responses, public.group_notices to anon, authenticated;
+grant insert, update on public.event_responses to anon, authenticated;
+grant insert, update, delete on public.group_events, public.group_notices to authenticated;
+grant delete on public.event_responses to authenticated;
+
+drop policy if exists "Grupo eventos visibles" on public.group_events;
+create policy "Grupo eventos visibles" on public.group_events for select to anon, authenticated using (true);
+drop policy if exists "Admin crea eventos grupo" on public.group_events;
+create policy "Admin crea eventos grupo" on public.group_events for insert to authenticated with check (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
+drop policy if exists "Admin modifica eventos grupo" on public.group_events;
+create policy "Admin modifica eventos grupo" on public.group_events for update to authenticated using (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com')) with check (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
+drop policy if exists "Admin elimina eventos grupo" on public.group_events;
+create policy "Admin elimina eventos grupo" on public.group_events for delete to authenticated using (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
+
+drop policy if exists "Respuestas visibles" on public.event_responses;
+create policy "Respuestas visibles" on public.event_responses for select to anon, authenticated using (true);
+drop policy if exists "Componentes responden" on public.event_responses;
+create policy "Componentes responden" on public.event_responses for insert to anon, authenticated with check (char_length(member_name) between 2 and 120 and char_length(device_id) between 6 and 120);
+drop policy if exists "Componentes actualizan respuesta" on public.event_responses;
+create policy "Componentes actualizan respuesta" on public.event_responses for update to anon, authenticated using (true) with check (char_length(member_name) between 2 and 120 and char_length(device_id) between 6 and 120);
+drop policy if exists "Admin elimina respuestas" on public.event_responses;
+create policy "Admin elimina respuestas" on public.event_responses for delete to authenticated using (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
+
+drop policy if exists "Avisos visibles" on public.group_notices;
+create policy "Avisos visibles" on public.group_notices for select to anon, authenticated using (true);
+drop policy if exists "Admin crea avisos" on public.group_notices;
+create policy "Admin crea avisos" on public.group_notices for insert to authenticated with check (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
+drop policy if exists "Admin modifica avisos" on public.group_notices;
+create policy "Admin modifica avisos" on public.group_notices for update to authenticated using (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com')) with check (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
+drop policy if exists "Admin elimina avisos" on public.group_notices;
+create policy "Admin elimina avisos" on public.group_notices for delete to authenticated using (lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
+
+notify pgrst, 'reload schema';

@@ -95,7 +95,19 @@ Este paquete ya incluye la URL del proyecto, la Publishable key y el correo admi
 - Ejecuta de nuevo `supabase-setup.sql` para crear las columnas y el bucket `dance-pdfs`.
 
 
-## v4.17
-- El apartado Bailarines usa automáticamente la misma lista y el mismo orden de canciones de la actuación.
-- Se elimina el campo manual de lista de bailes para evitar duplicidades.
-- El PDF para bailarines se mantiene como adjunto independiente.
+## v4.18
+- Autoguardado inmediato de anotaciones mientras se escribe.
+- Publicación automática en Supabase al editar una actuación existente.
+- Autoguardado también de orden, altas/bajas y datos básicos de la actuación.
+- Estado visible: guardando, publicado o pendiente de publicar.
+
+## v4.19 · Gestión del grupo
+- Nueva sección **Grupo** accesible para todos.
+- Ensayos con fecha, hora, lugar, objetivos y control de asistencia.
+- Encuestas de disponibilidad para actuaciones.
+- Perfil local de cada componente (nombre y sección).
+- Avisos generales e importantes.
+- Vestuario y logística: encuentro, salida, regreso, transporte y contacto.
+- Calendario común.
+- Resumen de respuestas visible para el administrador.
+- Ejecuta de nuevo `supabase-setup.sql` para crear las tablas nuevas.
