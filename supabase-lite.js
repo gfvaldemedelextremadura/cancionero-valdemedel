@@ -228,6 +228,34 @@
         const current = await refreshSessionIfNeeded();
         return { data: { session: current }, error: null };
       },
+      async signInWithOtp(credentials) {
+        try {
+          const email = String(credentials?.email || '').trim().toLowerCase();
+          await authRequest('/auth/v1/otp', {
+            email,
+            create_user: credentials?.options?.shouldCreateUser !== false,
+            data: credentials?.options?.data || {}
+          });
+          return { data: { user: null, session: null }, error: null };
+        } catch (error) {
+          return { data: { user: null, session: null }, error };
+        }
+      },
+      async verifyOtp(params) {
+        try {
+          const payload = await authRequest('/auth/v1/verify', {
+            email: String(params?.email || '').trim().toLowerCase(),
+            token: String(params?.token || '').trim(),
+            type: params?.type || 'email'
+          });
+          const next = normalizeSession(payload);
+          writeSession(next);
+          emit('SIGNED_IN', next);
+          return { data: { session: next, user: next?.user || null }, error: null };
+        } catch (error) {
+          return { data: { session: null, user: null }, error };
+        }
+      },
       async signInWithPassword(credentials) {
         try {
           const payload = await authRequest('/auth/v1/token?grant_type=password', {
@@ -238,6 +266,19 @@
           writeSession(next);
           emit('SIGNED_IN', next);
           return { data: { session: next, user: next?.user || null }, error: null };
+        } catch (error) {
+          return { data: { session: null, user: null }, error };
+        }
+      },
+      async signUp(credentials) {
+        try {
+          const payload = await authRequest('/auth/v1/signup', {
+            email: String(credentials?.email || '').trim().toLowerCase(),
+            password: String(credentials?.password || '')
+          });
+          const next = normalizeSession(payload);
+          if (next) { writeSession(next); emit('SIGNED_IN', next); }
+          return { data: { session: next, user: next?.user || payload?.user || null }, error: null };
         } catch (error) {
           return { data: { session: null, user: null }, error };
         }
@@ -287,6 +328,16 @@
     return {
       auth,
       from(table) { return new QueryBuilder(table); },
+      async rpc(functionName, args) {
+        try {
+          const activeSession = await refreshSessionIfNeeded();
+          const headers = { apikey: apiKey, Authorization: 'Bearer ' + (activeSession?.access_token || apiKey), 'Content-Type': 'application/json' };
+          const response = await fetch(baseUrl + '/rest/v1/rpc/' + encodeURIComponent(functionName), { method:'POST', headers, body:JSON.stringify(args || {}), cache:'no-store' });
+          const payload = await parseResponse(response);
+          if (!response.ok) throw makeError(payload?.message || payload?.hint || payload?.details || ('Error HTTP ' + response.status), response.status, payload);
+          return { data: payload, error: null };
+        } catch (error) { return { data:null, error }; }
+      },
       channel,
       removeChannel(ch) { if (ch?.unsubscribe) ch.unsubscribe(); }
     };
