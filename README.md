@@ -88,3 +88,14 @@ Este paquete ya incluye la URL del proyecto, la Publishable key y el correo admi
 - Corrige el error `failed to parse filter (...)` causado por un parámetro de caché incompatible con PostgREST.
 - Añade copia de actuaciones para uso sin conexión.
 - Las actuaciones descargadas pueden abrirse y usarse en modo actuación sin Internet.
+
+## v4.16
+- Zona de bailarines en cada actuación, con lista de bailes y PDF adjunto por el administrador.
+- Afinador cromático integrado mediante el micrófono del dispositivo.
+- Ejecuta de nuevo `supabase-setup.sql` para crear las columnas y el bucket `dance-pdfs`.
+
+
+## v4.17
+- El apartado Bailarines usa automáticamente la misma lista y el mismo orden de canciones de la actuación.
+- Se elimina el campo manual de lista de bailes para evitar duplicidades.
+- El PDF para bailarines se mantiene como adjunto independiente.

@@ -110,3 +110,23 @@ select
 from pg_class c
 join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'public' and c.relname = 'performances';
+
+-- v4.16 · Área de bailarines y PDFs
+alter table public.performances add column if not exists dances jsonb not null default '[]'::jsonb;
+alter table public.performances add column if not exists dance_pdf_url text not null default '';
+alter table public.performances add column if not exists dance_pdf_name text not null default '';
+alter table public.performances add column if not exists dance_pdf_path text not null default '';
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('dance-pdfs','dance-pdfs',true,20971520,array['application/pdf'])
+on conflict (id) do update set public=true,file_size_limit=20971520,allowed_mime_types=array['application/pdf'];
+
+drop policy if exists "PDF bailarines lectura publica" on storage.objects;
+create policy "PDF bailarines lectura publica" on storage.objects for select to public using (bucket_id='dance-pdfs');
+drop policy if exists "Admin sube PDF bailarines" on storage.objects;
+create policy "Admin sube PDF bailarines" on storage.objects for insert to authenticated with check (bucket_id='dance-pdfs' and lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
+drop policy if exists "Admin actualiza PDF bailarines" on storage.objects;
+create policy "Admin actualiza PDF bailarines" on storage.objects for update to authenticated using (bucket_id='dance-pdfs' and lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com')) with check (bucket_id='dance-pdfs' and lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
+drop policy if exists "Admin elimina PDF bailarines" on storage.objects;
+create policy "Admin elimina PDF bailarines" on storage.objects for delete to authenticated using (bucket_id='dance-pdfs' and lower(coalesce(auth.jwt()->>'email',''))=lower('gfvaldemedelextremadura@gmail.com'));
+notify pgrst, 'reload schema';
