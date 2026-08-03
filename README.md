@@ -111,3 +111,10 @@ Este paquete ya incluye la URL del proyecto, la Publishable key y el correo admi
 - Calendario común.
 - Resumen de respuestas visible para el administrador.
 - Ejecuta de nuevo `supabase-setup.sql` para crear las tablas nuevas.
+
+
+## v4.24
+- La app abre en la sección Grupo.
+- Acceso y registro visibles al iniciar.
+- Participantes por actuación.
+- Enlaces de invitado para acceder únicamente a una actuación.

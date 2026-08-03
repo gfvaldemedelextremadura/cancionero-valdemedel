@@ -422,3 +422,14 @@ using (bucket_id='dance-pdfs' and public.is_valdemedel_manager());
 -- La política "Admin gestiona perfiles" sigue usando is_valdemedel_admin().
 
 notify pgrst, 'reload schema';
+
+
+-- =========================================================
+-- v4.24 · Invitados y participantes por actuación
+-- =========================================================
+alter table public.performances add column if not exists participants jsonb not null default '[]'::jsonb;
+alter table public.performances add column if not exists guest_token text;
+create unique index if not exists performances_guest_token_unique on public.performances(guest_token) where guest_token is not null;
+-- La lectura pública existente permite abrir una actuación mediante su token.
+-- La aplicación solo muestra la actuación vinculada al enlace invitado.
+notify pgrst, 'reload schema';
