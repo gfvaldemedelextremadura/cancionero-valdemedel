@@ -495,7 +495,7 @@ function startAutomaticCloudRefresh(){
  window.addEventListener('offline',()=>{state.cloudLoading=false;if(state.view==='performances')renderPerformances();toast('Modo sin conexión activado')});
  setInterval(refresh,5000);
 }
-$$('.bottom-nav button').forEach(b=>b.onclick=()=>nav(b.dataset.view));$('#homeBtn').onclick=()=>nav('library');if($('#refreshAppBtn'))$('#refreshAppBtn').onclick=forceAppRefresh;if($('#tunerBtn'))$('#tunerBtn').onclick=openTuner;$('#themeBtn').onclick=()=>{document.body.classList.toggle('dark');localStorage.setItem(STORAGE.theme,document.body.classList.contains('dark'))};$('#backupBtn').onclick=()=>{if(requireAdmin())exportBackup()};$('#adminBtn').onclick=adminLogin;if(localStorage.getItem(STORAGE.theme)==='true')document.body.classList.add('dark');renderChrome();render();initCloud();startAutomaticCloudRefresh();if('serviceWorker'in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+$$('.bottom-nav button').forEach(b=>b.onclick=()=>nav(b.dataset.view));$('#homeBtn').onclick=()=>nav('management');if($('#refreshAppBtn'))$('#refreshAppBtn').onclick=forceAppRefresh;if($('#tunerBtn'))$('#tunerBtn').onclick=openTuner;$('#themeBtn').onclick=()=>{document.body.classList.toggle('dark');localStorage.setItem(STORAGE.theme,document.body.classList.contains('dark'))};$('#backupBtn').onclick=()=>{if(requireAdmin())exportBackup()};$('#adminBtn').onclick=adminLogin;if(localStorage.getItem(STORAGE.theme)==='true')document.body.classList.add('dark');renderChrome();render();initCloud();startAutomaticCloudRefresh();if('serviceWorker'in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 
 /* ==========================================================
    v4.19 · Gestión del grupo: ensayos, encuestas, avisos,
@@ -581,7 +581,7 @@ async function registerMemberPassword(email,password,confirmPassword,fullName){
  return data;
 }
 function pendingAccountMarkup(){const p=memberState.profile||{};return `<div class="pending-account"><strong>Solicitud pendiente de aprobación</strong><span>${esc(p.full_name||currentUserEmail())}</span><p>El administrador debe aceptar tu registro y asignarte un rol. Puedes cerrar la sesión y volver a entrar más tarde.</p></div>`}
-function openAccount(){
+async function openAccount(){
  if(!CLOUD_ENABLED)return alert('La sincronización no está configurada.');if(!cloudClient){const ready=await initCloud();if(!ready||!cloudClient)return alert('No se ha podido conectar con Supabase. Pulsa «Actualizar» y vuelve a intentarlo.');}
  if(currentUser()){
   const p=memberState.profile||{};
