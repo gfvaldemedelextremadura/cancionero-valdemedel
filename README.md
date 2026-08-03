@@ -123,3 +123,9 @@ Este paquete ya incluye la URL del proyecto, la Publishable key y el correo admi
 ## v4.25
 - Corrige la inicialización de Supabase y reintenta la conexión antes de abrir el acceso.
 - Actualiza la caché de la PWA para evitar que se cargue el mensaje antiguo de la v4.12.
+
+
+## v4.27
+- Corrige el error `Cannot access memberState before initialization`.
+- Restablece la carga de actuaciones y la conexión con Supabase.
+- Mantiene Grupo como pantalla inicial y conserva usuarios, roles, participantes e invitados.

@@ -8,6 +8,8 @@ const OFFLINE_PERFORMANCES_KEY='vm2_offline_performances_v415';
 let cloudClient=null,cloudChannel=null,legacyOfferShown=false,pendingDancePdfFile=null;
 const clone=x=>JSON.parse(JSON.stringify(x));
 const state={songs:load(STORAGE.songs,clone(DEFAULT_SONGS)),rep:load(STORAGE.rep,[]),performances:load(STORAGE.performances,[]),repAnnotations:load(STORAGE.repAnnotations,{}),view:'management',filter:'Todas',search:'',current:null,performanceMode:false,editingPerformanceId:null,performanceDraft:null,isAdmin:!CLOUD_ENABLED&&sessionStorage.getItem('vm_admin')==='1',cloudLoading:CLOUD_ENABLED,cloudError:'',cloudLastSync:null};
+// v4.27: se inicializa antes del primer render para evitar el error de acceso antes de inicialización.
+var memberState={session:null,profile:null,profiles:[],loading:false};
 
 function offlinePerformanceMap(){const value=load(OFFLINE_PERFORMANCES_KEY,{});return value&&typeof value==='object'&&!Array.isArray(value)?value:{}}
 function saveOfflinePerformanceMap(value){localStorage.setItem(OFFLINE_PERFORMANCES_KEY,JSON.stringify(value||{}))}
@@ -539,7 +541,7 @@ setInterval(()=>{if(state.view==='management'&&document.visibilityState==='visib
    v4.23 · Registro, aprobación y permisos por rol
    ========================================================== */
 const MEMBER_STORAGE={profile:'vm_member_profile_v423'};
-const memberState={session:null,profile:null,profiles:[],loading:false};
+// memberState ya está inicializado al comienzo del archivo.
 function currentUser(){return memberState.session?.user||null}
 function currentUserEmail(){return String(currentUser()?.email||'').toLowerCase()}
 function currentMemberRole(){return memberState.profile?.role||(state.isAdmin?'admin_total':'visitor')}
