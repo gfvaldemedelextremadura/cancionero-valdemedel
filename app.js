@@ -1264,12 +1264,12 @@ window.addEventListener('beforeunload',()=>{
   try{performance=await getPerformance();songs=await getSongs(performance);if(!songs.length)throw new Error('Esta actuación no tiene canciones');index=0;fontSize=window.innerWidth<620?17:19;overlay=document.createElement('section');overlay.className='vm-guest-performance';overlay.setAttribute('role','dialog');overlay.setAttribute('aria-label','Modo actuación de invitado');document.body.append(overlay);document.body.classList.add('vm-guest-performing','guest-access-mode');guestAccess.mode='standalone-performance';renderSong()}catch(error){console.error('Modo actuación invitado v4.44',error);alert('No se ha podido preparar el modo actuación: '+(error?.message||'error desconocido'))}finally{loader.remove();busy=false}
  }
  // Captura temprana: anula todos los controladores antiguos de #guestPerform.
- document.addEventListener('click',event=>{const b=event.target.closest?.('#guestPerform');if(!b)return;event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();open()},{capture:true});
+ document.addEventListener('click',event=>{const b=event.target.closest?.('#guestPerformLegacyDisabled');if(!b)return;open()},{capture:true});
  window.addEventListener('popstate',()=>{if(overlay)close()});
 })();
 
 /* ==========================================================
-   v4.46 · Modo actuación de invitados con la misma estructura
+   v4.47 · Letras completas en modo actuación de invitados con la misma estructura
    que el modo normal: ajuste automático, una/dos columnas,
    zoom y desplazamiento táctil completo.
    ========================================================== */
@@ -1297,11 +1297,22 @@ window.addEventListener('beforeunload',()=>{
   return typeof performanceFromRow==='function'?performanceFromRow(rows[0]):rows[0];
  }
  async function loadSongs(p){
-  const map=new Map();
-  (Array.isArray(window.state?.songs)?window.state.songs:[]).forEach(s=>map.set(sid(s.id),s));
-  (p.songs||[]).forEach(e=>{const f=fullEntry(e);if(f)map.set(entryId(e),f)});
-  try{const rows=await rest('shared_songs?select=*');(rows||[]).map(rowSong).filter(Boolean).forEach(s=>map.set(sid(s.id),s))}catch(e){console.warn('v4.46 shared_songs',e)}
-  return (p.songs||[]).map((e,i)=>map.get(entryId(e))||fullEntry(e)||{id:entryId(e),title:(e&&typeof e==='object'&&(e.title||e.name))||`Canción ${i+1}`,lyrics:'Letra no disponible en este enlace.',chordMode:'none',sections:[]});
+  const byId=new Map(),byTitle=new Map();
+  const normTitle=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const add=s=>{if(!s||typeof s!=='object')return;const id=sid(s.id);if(id)byId.set(id,s);const t=normTitle(s.title||s.name);if(t)byTitle.set(t,s)};
+  try{(Array.isArray(DEFAULT_SONGS)?DEFAULT_SONGS:[]).forEach(add)}catch{}
+  try{const local=JSON.parse(localStorage.getItem('vm2_songs')||'[]');if(Array.isArray(local))local.forEach(add)}catch{}
+  try{(Array.isArray(state?.songs)?state.songs:[]).forEach(add)}catch{}
+  (p.songs||[]).forEach(e=>{const f=fullEntry(e);if(f)add(f)});
+  try{const rows=await rest('shared_songs?select=*');(rows||[]).map(rowSong).filter(Boolean).forEach(add)}catch(e){console.warn('v4.47 shared_songs',e)}
+  return (p.songs||[]).map((e,i)=>{
+   const embedded=fullEntry(e);if(embedded&&String(embedded.lyrics||embedded.inlineContent||'').trim())return embedded;
+   const id=entryId(e);
+   const title=e&&typeof e==='object'?(e.title||e.name||''):'';
+   const found=byId.get(id)||byTitle.get(normTitle(title));
+   if(found)return found;
+   return {id,title:title||`Canción ${i+1}`,lyrics:'Letra no disponible en este enlace.',chordMode:'none',sections:[]};
+  });
  }
  function chordsHtml(s){
   if(s.chordMode==='general')return escapeHtml(s.generalChords||s.key||'');
@@ -1353,7 +1364,7 @@ window.addEventListener('beforeunload',()=>{
   requestAnimationFrame(()=>requestAnimationFrame(fit));
  }
  function close(){active=false;overlay?.remove();overlay=null;document.body.classList.remove('vm446-guest-performing');if(window.guestAccess){guestAccess.mode='landing';try{renderGuestAccess()}catch{location.href=location.pathname+'?guest='+encodeURIComponent(guestToken)}}}
- async function open(){if(busy||active)return;busy=true;const loader=document.createElement('div');loader.className='vm-gp-loader';loader.textContent='Preparando modo actuación…';document.body.append(loader);try{performance=await loadPerformance();songs=await loadSongs(performance);if(!songs.length)throw new Error('Esta actuación no tiene canciones');songIndex=0;manualDelta=0;overlay=document.createElement('div');overlay.className='vm446-guest-performance';document.body.append(overlay);document.body.classList.add('vm446-guest-performing','guest-access-mode');active=true;if(window.guestAccess)guestAccess.mode='standalone-performance-v446';renderSong()}catch(e){console.error('Modo invitado v4.46',e);alert('No se ha podido preparar el modo actuación: '+(e?.message||'error desconocido'))}finally{loader.remove();busy=false}}
+ async function open(){if(busy||active)return;busy=true;const loader=document.createElement('div');loader.className='vm-gp-loader';loader.textContent='Preparando modo actuación…';document.body.append(loader);try{performance=await loadPerformance();songs=await loadSongs(performance);if(!songs.length)throw new Error('Esta actuación no tiene canciones');songIndex=0;manualDelta=0;overlay=document.createElement('div');overlay.className='vm446-guest-performance';document.body.append(overlay);document.body.classList.add('vm446-guest-performing','guest-access-mode');active=true;if(window.guestAccess)guestAccess.mode='standalone-performance-v446';renderSong()}catch(e){console.error('Modo invitado v4.47',e);alert('No se ha podido preparar el modo actuación: '+(e?.message||'error desconocido'))}finally{loader.remove();busy=false}}
  window.addEventListener('click',e=>{const b=e.target.closest?.('#guestPerform');if(!b)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();open()},{capture:true});
  window.addEventListener('resize',()=>{if(!active)return;clearTimeout(resizeTimer);resizeTimer=setTimeout(renderSong,120)});
  window.addEventListener('popstate',()=>{if(active)close()});

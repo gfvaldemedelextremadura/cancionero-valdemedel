@@ -1,4 +1,4 @@
-# Cancionero Valdemedel v4.46
+# Cancionero Valdemedel v4.47
 
 Actualización: afinador cromático integrado dentro del modo actuación normal y del modo actuación para invitados.
 
@@ -162,3 +162,9 @@ Acceso obligatorio: la app permanece bloqueada hasta iniciar sesión con una cue
 
 ## v4.40
 Corrige el acceso de invitado al modo actuación. Antes de abrirlo, descarga de Supabase las letras y acordes incluidos en la actuación, sin exigir registro.
+
+
+## v4.47
+- El modo actuación de invitados carga primero el catálogo completo incluido en la app.
+- Después aplica las ediciones y canciones nuevas compartidas en Supabase.
+- Se desactiva el controlador antiguo que podía abrir un modo simplificado sin letras.
