@@ -143,3 +143,11 @@ Acceso obligatorio: la app permanece bloqueada hasta iniciar sesión con una cue
 - Borrador automático al editar canciones.
 - Recuperación de cambios si se cierra la app o se sale sin pulsar Guardar.
 - El borrador se elimina únicamente al guardar la canción.
+
+
+## v4.35
+- Sincronización de canciones sin sobrescribir ediciones locales más recientes.
+- Historial automático de hasta 20 versiones por canción.
+- Botón «Versiones anteriores» en el editor.
+- Las reparaciones antiguas ya no sustituyen cambios hechos posteriormente.
+- Confirmación real de Supabase al guardar canciones.
