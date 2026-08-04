@@ -11,6 +11,7 @@ const clone=x=>JSON.parse(JSON.stringify(x));
 const state={songs:load(STORAGE.songs,clone(DEFAULT_SONGS)),rep:load(STORAGE.rep,[]),performances:load(STORAGE.performances,[]),repAnnotations:load(STORAGE.repAnnotations,{}),view:'management',filter:'Todas',search:'',current:null,performanceMode:false,editingPerformanceId:null,performanceDraft:null,isAdmin:!CLOUD_ENABLED&&sessionStorage.getItem('vm_admin')==='1',cloudLoading:CLOUD_ENABLED,cloudError:'',cloudLastSync:null};
 // v4.27: se inicializa antes del primer render para evitar el error de acceso antes de inicialización.
 var memberState={session:null,profile:null,profiles:[],loading:false};
+const SONG_HISTORY_PREFIX='vm_song_history_v435_';
 
 function offlinePerformanceMap(){const value=load(OFFLINE_PERFORMANCES_KEY,{});return value&&typeof value==='object'&&!Array.isArray(value)?value:{}}
 function saveOfflinePerformanceMap(value){localStorage.setItem(OFFLINE_PERFORMANCES_KEY,JSON.stringify(value||{}))}
@@ -147,7 +148,6 @@ function openModal(html){
 }
 function load(k,f){try{const v=localStorage.getItem(k);return v?JSON.parse(v):f}catch{return f}}
 function persist(){localStorage.setItem(STORAGE.songs,JSON.stringify(state.songs));localStorage.setItem(STORAGE.rep,JSON.stringify(state.rep));localStorage.setItem(STORAGE.performances,JSON.stringify(state.performances));localStorage.setItem(STORAGE.repAnnotations,JSON.stringify(state.repAnnotations||{}));}
-const SONG_HISTORY_PREFIX='vm_song_history_v435_';
 function songHistoryKey(id){return SONG_HISTORY_PREFIX+String(id)}
 function songFingerprint(song){try{return JSON.stringify({...song,updatedAt:undefined})}catch{return ''}}
 function backupSongRevision(song,reason='copia automática'){
@@ -883,7 +883,7 @@ const refreshCloudPerformancesV429=refreshCloudPerformances;refreshCloudPerforma
    v4.32 · Acceso obligatorio con excepción segura para invitados. Sin sesión aprobada no se
    renderiza ni se muestra ninguna sección de la aplicación.
    ========================================================== */
-const VM_AUTH_GATE_VERSION='4.51';
+const VM_AUTH_GATE_VERSION='4.52';
 function vmGateEl(id){return document.getElementById(id)}
 function vmGateSetScreen(screen,message=''){
  const gate=vmGateEl('authGate'); if(!gate)return;
@@ -1360,7 +1360,7 @@ window.addEventListener('beforeunload',()=>{
 })();
 
 /* ==========================================================
-   v4.51 · Letras completas en modo actuación de invitados con la misma estructura
+   v4.52 · Letras completas en modo actuación de invitados con la misma estructura
    que el modo normal: ajuste automático, una/dos columnas,
    zoom y desplazamiento táctil completo.
    ========================================================== */
@@ -1395,7 +1395,7 @@ window.addEventListener('beforeunload',()=>{
   try{const local=JSON.parse(localStorage.getItem('vm2_songs')||'[]');if(Array.isArray(local))local.forEach(add)}catch{}
   try{(Array.isArray(state?.songs)?state.songs:[]).forEach(add)}catch{}
   (p.songs||[]).forEach(e=>{const f=fullEntry(e);if(f)add(f)});
-  try{const rows=await rest('shared_songs?select=*');(rows||[]).map(rowSong).filter(Boolean).forEach(add)}catch(e){console.warn('v4.51 shared_songs',e)}
+  try{const rows=await rest('shared_songs?select=*');(rows||[]).map(rowSong).filter(Boolean).forEach(add)}catch(e){console.warn('v4.52 shared_songs',e)}
   return (p.songs||[]).map((e,i)=>{
    const embedded=fullEntry(e);if(embedded&&String(embedded.lyrics||embedded.inlineContent||'').trim())return embedded;
    const id=entryId(e);
@@ -1455,7 +1455,7 @@ window.addEventListener('beforeunload',()=>{
   requestAnimationFrame(()=>requestAnimationFrame(fit));
  }
  function close(){active=false;overlay?.remove();overlay=null;document.body.classList.remove('vm446-guest-performing');if(window.guestAccess){guestAccess.mode='landing';try{renderGuestAccess()}catch{location.href=location.pathname+'?guest='+encodeURIComponent(guestToken)}}}
- async function open(){if(busy||active)return;busy=true;const loader=document.createElement('div');loader.className='vm-gp-loader';loader.textContent='Preparando modo actuación…';document.body.append(loader);try{performance=await loadPerformance();songs=await loadSongs(performance);if(!songs.length)throw new Error('Esta actuación no tiene canciones');songIndex=0;manualDelta=0;overlay=document.createElement('div');overlay.className='vm446-guest-performance';document.body.append(overlay);document.body.classList.add('vm446-guest-performing','guest-access-mode');active=true;if(window.guestAccess)guestAccess.mode='standalone-performance-v446';renderSong()}catch(e){console.error('Modo invitado v4.51',e);alert('No se ha podido preparar el modo actuación: '+(e?.message||'error desconocido'))}finally{loader.remove();busy=false}}
+ async function open(){if(busy||active)return;busy=true;const loader=document.createElement('div');loader.className='vm-gp-loader';loader.textContent='Preparando modo actuación…';document.body.append(loader);try{performance=await loadPerformance();songs=await loadSongs(performance);if(!songs.length)throw new Error('Esta actuación no tiene canciones');songIndex=0;manualDelta=0;overlay=document.createElement('div');overlay.className='vm446-guest-performance';document.body.append(overlay);document.body.classList.add('vm446-guest-performing','guest-access-mode');active=true;if(window.guestAccess)guestAccess.mode='standalone-performance-v446';renderSong()}catch(e){console.error('Modo invitado v4.52',e);alert('No se ha podido preparar el modo actuación: '+(e?.message||'error desconocido'))}finally{loader.remove();busy=false}}
  window.addEventListener('click',e=>{const b=e.target.closest?.('#guestPerform');if(!b)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();open()},{capture:true});
  window.addEventListener('resize',()=>{if(!active)return;clearTimeout(resizeTimer);resizeTimer=setTimeout(renderSong,120)});
  window.addEventListener('popstate',()=>{if(active)close()});
