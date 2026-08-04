@@ -137,3 +137,9 @@ Acceso obligatorio: la app permanece bloqueada hasta iniciar sesión con una cue
 
 ## v4.33
 - Corrige la aprobación, rechazo y activación de solicitudes mediante una función segura de Supabase.
+
+
+## v4.34
+- Borrador automático al editar canciones.
+- Recuperación de cambios si se cierra la app o se sale sin pulsar Guardar.
+- El borrador se elimina únicamente al guardar la canción.
