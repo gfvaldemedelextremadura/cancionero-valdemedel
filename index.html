@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#7a1637"><title>Cancionero Valdemedel</title>
-<link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles.css?v=4.50">
+<link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles.css?v=4.51">
 <script>
 (function(){
   var token='';
@@ -50,64 +50,30 @@ if(window.__VM_GUEST_TOKEN){
 }
 </script>
 <script>
+window.__VM_APP_LOADED=false;
+window.__VM_SCRIPT_ERROR='';
+</script>
+<script src="supabase-config.js?v=4.51" onerror="window.__VM_SCRIPT_ERROR='No se cargó la configuración'"></script>
+<script src="supabase-lite.js?v=4.51" onerror="window.__VM_SCRIPT_ERROR='No se cargó la conexión'"></script>
+<script src="app.js?v=4.51" onload="window.__VM_APP_LOADED=true" onerror="window.__VM_SCRIPT_ERROR='No se cargó la aplicación'"></script>
+<script>
 (function(){
-  if(window.__VM_GUEST_TOKEN)return;
   setTimeout(function(){
-    var gate=document.getElementById('authGate');
+    if(window.__VM_APP_LOADED)return;
     var loading=document.getElementById('authGateLoading');
     var login=document.getElementById('authGateLogin');
     var text=document.getElementById('authGateText');
-    if(gate && !gate.hidden && loading && !loading.hidden){
-      loading.hidden=true;
-      if(login)login.hidden=false;
-      if(text)text.textContent='La conexión está tardando. Inicia sesión para continuar.';
-      var error=document.getElementById('authGateError');
-      if(error){error.textContent='La aplicación no ha terminado de arrancar. Pulsa “Reparar acceso” para actualizarla.';error.hidden=false;}
-      if(login && !document.getElementById('authRepairBtn')){var repair=document.createElement('button');repair.type='button';repair.id='authRepairBtn';repair.className='btn secondary';repair.textContent='Reparar acceso';repair.onclick=window.__vmRepairApp;login.appendChild(repair);}
-    }
-  },9000);
-})();
-</script>
-<script>
-(function(){
-  async function clearAppCaches(){
-    try{if('serviceWorker' in navigator){var regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(function(r){return r.unregister();}));}}catch(e){}
-    try{if(window.caches){var keys=await caches.keys();await Promise.all(keys.map(function(k){return caches.delete(k);}));}}catch(e){}
-  }
-  window.__vmRepairApp=async function(){
-    var btn=document.getElementById('authRepairBtn');
-    if(btn){btn.disabled=true;btn.textContent='Reparando…';}
-    await clearAppCaches();
-    try{localStorage.setItem('vm_force_version','4.50');}catch(e){}
-    var url=new URL(location.href);url.searchParams.set('actualizar','4.50-'+Date.now());location.replace(url.toString());
-  };
-  // Una sola limpieza automática al migrar desde versiones antiguas de la PWA.
-  try{
-    if(localStorage.getItem('vm_pwa_boot_version')!=='4.50'){
-      localStorage.setItem('vm_pwa_boot_version','4.50');
-      clearAppCaches().then(function(){
-        if(!new URLSearchParams(location.search).has('actualizar')){
-          var url=new URL(location.href);url.searchParams.set('actualizar','4.50');location.replace(url.toString());
-        }
-      });
-    }
-  }catch(e){}
-})();
-</script>
-<script src="supabase-config.js?v=4.50"></script><script src="supabase-lite.js?v=4.50"></script><script src="app.js?v=4.50"></script>
-<script>
-(function(){
-  setTimeout(function(){
-    var form=document.getElementById('authGateLogin');
-    if(!form || form.dataset.bound==='1')return;
-    var loading=document.getElementById('authGateLoading');if(loading)loading.hidden=true;
-    form.hidden=false;
-    var text=document.getElementById('authGateText');if(text)text.textContent='Acceso de recuperación';
     var error=document.getElementById('authGateError');
-    if(error){error.textContent='No se ha cargado correctamente la aplicación. Pulsa “Reparar acceso”.';error.hidden=false;}
-    if(!document.getElementById('authRepairBtn')){var repair=document.createElement('button');repair.type='button';repair.id='authRepairBtn';repair.className='btn secondary';repair.textContent='Reparar acceso';repair.onclick=window.__vmRepairApp;form.appendChild(repair);}
-    form.addEventListener('submit',function(e){e.preventDefault();window.__vmRepairApp();});
-  },3500);
+    if(loading)loading.hidden=true;
+    if(login)login.hidden=false;
+    if(text)text.textContent='No se pudo cargar la aplicación.';
+    if(error){
+      error.textContent=(window.__VM_SCRIPT_ERROR||'El archivo principal no respondió.')+' Cierra la app y vuelve a abrirla.';
+      error.hidden=false;
+    }
+  },15000);
 })();
 </script>
+
+
 </body></html>
