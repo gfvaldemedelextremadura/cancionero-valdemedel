@@ -330,6 +330,58 @@ begin
 end; $$;
 grant execute on function public.update_my_member_name(text) to authenticated;
 
+
+-- Gestión segura de solicitudes y miembros desde la aplicación.
+-- Se usa una función SECURITY DEFINER para evitar que los permisos de tabla
+-- impidan al administrador aceptar, rechazar o desactivar usuarios.
+create or replace function public.manage_member_profile(
+  target_user_id uuid,
+  new_status text,
+  new_role text,
+  new_member_type text default null,
+  new_active boolean default true
+)
+returns public.member_profiles
+language plpgsql
+security definer
+set search_path=public
+as $$
+declare
+  outrow public.member_profiles;
+begin
+  if not public.is_valdemedel_admin() then
+    raise exception 'Solo el administrador total puede gestionar usuarios';
+  end if;
+
+  if new_status not in ('pending','approved','rejected') then
+    raise exception 'Estado no válido';
+  end if;
+  if new_role not in ('admin_total','dance_director','director','component') then
+    raise exception 'Rol no válido';
+  end if;
+  if new_role='component' and new_member_type is not null and new_member_type not in ('musician','dancer','staff') then
+    raise exception 'Tipo de componente no válido';
+  end if;
+
+  update public.member_profiles
+  set role=new_role,
+      member_type=case when new_role='component' then new_member_type else null end,
+      approval_status=new_status,
+      active=case when new_status='approved' then coalesce(new_active,true) else false end,
+      approved_at=case when new_status='approved' then now() else null end,
+      approved_by=case when new_status='approved' then auth.uid() else null end,
+      updated_at=now()
+  where user_id=target_user_id
+  returning * into outrow;
+
+  if outrow.user_id is null then
+    raise exception 'No se encontró la solicitud';
+  end if;
+  return outrow;
+end; $$;
+revoke all on function public.manage_member_profile(uuid,text,text,text,boolean) from public;
+grant execute on function public.manage_member_profile(uuid,text,text,text,boolean) to authenticated;
+
 -- Cada usuario ve su propio perfil. El administrador total ve todos.
 drop policy if exists "Perfiles visibles para miembros" on public.member_profiles;
 drop policy if exists "Usuario actualiza su perfil" on public.member_profiles;

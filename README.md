@@ -133,3 +133,7 @@ Este paquete ya incluye la URL del proyecto, la Publishable key y el correo admi
 
 ## v4.32
 Acceso obligatorio: la app permanece bloqueada hasta iniciar sesión con una cuenta aprobada. Los registros pendientes solo ven su estado de aprobación.
+
+
+## v4.33
+- Corrige la aprobación, rechazo y activación de solicitudes mediante una función segura de Supabase.
