@@ -129,3 +129,7 @@ Este paquete ya incluye la URL del proyecto, la Publishable key y el correo admi
 - Corrige el error `Cannot access memberState before initialization`.
 - Restablece la carga de actuaciones y la conexión con Supabase.
 - Mantiene Grupo como pantalla inicial y conserva usuarios, roles, participantes e invitados.
+
+
+## v4.30
+Acceso obligatorio: la app permanece bloqueada hasta iniciar sesión con una cuenta aprobada. Los registros pendientes solo ven su estado de aprobación.

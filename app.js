@@ -708,3 +708,69 @@ async function publishLocalCustomSongs(){if(!cloudClient||!canManageContent())re
 async function ensureRondenaRabiosaVillar(){if(localStorage.getItem(VILLAR_RABIOSA_FIX_KEY)==='1'||!cloudClient||!canManageContent())return;const song=state.songs.find(x=>normalizaV429(x.title)==='rondena rabiosa');if(!song)return;const perf=state.performances.find(x=>normalizaV429((x.name||'')+' '+(x.place||'')).includes('villar de rena'));if(!perf)return;const songs=[...(perf.songs||[])].filter(id=>String(id)!==String(song.id));songs.splice(Math.min(16,songs.length),0,song.id);const updated={...perf,songs,updatedAt:new Date().toISOString()};try{await upsertSharedSong(song);const confirmed=await upsertCloudPerformance(updated);const i=state.performances.findIndex(x=>String(x.id)===String(perf.id));if(i>=0)state.performances[i]=confirmed;persist();localStorage.setItem(VILLAR_RABIOSA_FIX_KEY,'1');toast('Rondeña Rabiosa añadida como nº 17 en Villar de Rena');if(state.view==='performances'||state.view==='repertoire')render()}catch(e){console.error('No se pudo corregir Villar de Rena',e)}}
 const initCloudV429=initCloud;initCloud=async function(){await initCloudV429();try{await loadSharedSongs();if(canManageContent()&&!localStorage.getItem(SHARED_SONGS_SYNC_KEY))await publishLocalCustomSongs();await ensureRondenaRabiosaVillar()}catch(e){console.warn('Sincronización de canciones v4.29',e)}};
 const refreshCloudPerformancesV429=refreshCloudPerformances;refreshCloudPerformances=async function(opts={}){const out=await refreshCloudPerformancesV429(opts);try{await loadSharedSongs();await ensureRondenaRabiosaVillar()}catch(e){console.warn(e)}return out};
+
+/* ==========================================================
+   v4.30 · Acceso obligatorio. Sin sesión aprobada no se
+   renderiza ni se muestra ninguna sección de la aplicación.
+   ========================================================== */
+const VM_AUTH_GATE_VERSION='4.30';
+function vmGateEl(id){return document.getElementById(id)}
+function vmGateSetScreen(screen,message=''){
+ const gate=vmGateEl('authGate'); if(!gate)return;
+ gate.hidden=false; document.body.classList.add('auth-locked');
+ const loading=vmGateEl('authGateLoading'),login=vmGateEl('authGateLogin'),reg=vmGateEl('authGateRegister'),pending=vmGateEl('authGatePending'),text=vmGateEl('authGateText');
+ [loading,login,reg,pending].forEach(x=>{if(x)x.hidden=true});
+ if(text)text.textContent=message||'';
+ if(screen==='loading')loading.hidden=false;
+ if(screen==='login')login.hidden=false;
+ if(screen==='register')reg.hidden=false;
+ if(screen==='pending')pending.hidden=false;
+}
+function vmUnlockApp(){
+ const gate=vmGateEl('authGate'); if(gate)gate.hidden=true;
+ document.body.classList.remove('auth-locked');
+ state.view='management';
+ renderChrome();render();
+ if(typeof loadGroupData==='function')loadGroupData({silent:true});
+}
+function vmGateProfileApproved(){
+ const email=String(memberState?.session?.user?.email||'').toLowerCase();
+ const admin=String(CLOUD_CONFIG?.adminEmail||'').toLowerCase();
+ return Boolean(memberState?.session?.user && ((memberState.profile?.approval_status==='approved'&&memberState.profile?.active!==false)||email===admin));
+}
+function vmShowPendingGate(){
+ const p=memberState.profile||{};
+ vmGateSetScreen('pending','Tu cuenta está registrada, pero todavía no tiene acceso a la aplicación.');
+ const box=vmGateEl('authGatePending');
+ const rejected=p.approval_status==='rejected'||p.active===false;
+ box.innerHTML=`<strong>${rejected?'Acceso no autorizado':'Solicitud pendiente de aprobación'}</strong><span>${esc(p.full_name||memberState.session?.user?.email||'')}</span><p>${rejected?'El administrador ha rechazado o desactivado esta cuenta.':'El administrador debe aceptar tu solicitud y asignarte un rol. Vuelve a comprobarlo más tarde.'}</p><button class="btn auth-primary" id="authGateCheck">Comprobar de nuevo</button><button class="btn secondary" id="authGateLogout">Cerrar sesión</button>`;
+ vmGateEl('authGateCheck').onclick=vmAuthGateCheck;
+ vmGateEl('authGateLogout').onclick=async()=>{try{await cloudClient?.auth?.signOut()}catch{} memberState.session=null;memberState.profile=null;vmGateSetScreen('login','Inicia sesión para acceder al Cancionero Valdemedel.')};
+}
+async function vmAuthGateCheck(){
+ vmGateSetScreen('loading','Comprobando tu acceso…');
+ try{
+  if(!cloudClient){await initCloud()}
+  if(!cloudClient)throw new Error('No se ha podido conectar con Supabase.');
+  const {data,error}=await cloudClient.auth.getSession(); if(error)throw error;
+  if(!data?.session){memberState.session=null;memberState.profile=null;vmGateSetScreen('login','Inicia sesión para acceder al Cancionero Valdemedel.');return}
+  await syncMemberSession(data.session);
+  if(vmGateProfileApproved())vmUnlockApp();else vmShowPendingGate();
+ }catch(e){vmGateSetScreen('login','No se ha podido conectar. Revisa Internet y vuelve a intentarlo.');const err=vmGateEl('authGateError');err.textContent=e?.message||'Error de conexión';err.hidden=false}
+}
+function vmBindAuthGate(){
+ const login=vmGateEl('authGateLogin'),reg=vmGateEl('authGateRegister'); if(!login||login.dataset.bound)return; login.dataset.bound='1';
+ vmGateEl('authShowRegister').onclick=()=>vmGateSetScreen('register','Crea tu cuenta. El administrador deberá aprobarla antes de que puedas entrar.');
+ vmGateEl('authShowLogin').onclick=()=>vmGateSetScreen('login','Inicia sesión para acceder al Cancionero Valdemedel.');
+ login.onsubmit=async e=>{e.preventDefault();const err=vmGateEl('authGateError'),btn=login.querySelector('button[type="submit"]');err.hidden=true;btn.disabled=true;btn.textContent='Entrando…';try{if(!cloudClient)await initCloud();if(!cloudClient)throw new Error('No se ha podido conectar con Supabase.');await loginMemberWithPassword(vmGateEl('authGateEmail').value,vmGateEl('authGatePassword').value);if(vmGateProfileApproved())vmUnlockApp();else vmShowPendingGate()}catch(ex){let m=ex?.message||'No se pudo iniciar sesión.';if(/invalid login credentials/i.test(m))m='Correo o contraseña incorrectos.';err.textContent=m;err.hidden=false}finally{btn.disabled=false;btn.textContent='Entrar'}};
+ reg.onsubmit=async e=>{e.preventDefault();const err=vmGateEl('authRegError'),btn=reg.querySelector('button[type="submit"]');err.hidden=true;btn.disabled=true;btn.textContent='Enviando…';try{if(!cloudClient)await initCloud();if(!cloudClient)throw new Error('No se ha podido conectar con Supabase.');const data=await registerMemberPassword(vmGateEl('authRegEmail').value,vmGateEl('authRegPassword').value,vmGateEl('authRegPassword2').value,vmGateEl('authRegName').value);if(data?.session){await syncMemberSession(data.session);vmShowPendingGate()}else{vmGateSetScreen('login','Cuenta creada. Confirma el correo si Supabase te ha enviado un mensaje y después inicia sesión.')}}catch(ex){let m=ex?.message||'No se pudo crear la cuenta.';if(/user already registered/i.test(m))m='Ese correo ya está registrado. Inicia sesión.';err.textContent=m;err.hidden=false}finally{btn.disabled=false;btn.textContent='Enviar solicitud'}};
+}
+async function vmAuthGateBoot(){
+ vmBindAuthGate(); vmGateSetScreen('loading','Conectando con el grupo…');
+ await vmAuthGateCheck();
+ try{cloudClient?.auth?.onAuthStateChange(async(_event,session)=>{memberState.session=session||null;if(!session){memberState.profile=null;vmGateSetScreen('login','Inicia sesión para acceder al Cancionero Valdemedel.');return}await syncMemberSession(session);if(vmGateProfileApproved())vmUnlockApp();else vmShowPendingGate()})}catch(e){console.warn('Auth gate listener',e)}
+}
+// Cerrar sesión vuelve siempre al acceso obligatorio.
+const vmOriginalOpenAccount=openAccount;
+openAccount=function(){if(!memberState?.session?.user){vmGateSetScreen('login','Inicia sesión para acceder al Cancionero Valdemedel.');return}return vmOriginalOpenAccount()};
+requestAnimationFrame(vmAuthGateBoot);
