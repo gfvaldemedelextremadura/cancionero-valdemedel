@@ -1,4 +1,4 @@
-# Cancionero Valdemedel v4.41
+# Cancionero Valdemedel v4.40
 
 Corrección del acceso mediante enlace de invitado. El enlace abre directamente la actuación sin registro ni inicio de sesión y consulta Supabase mediante lectura pública independiente del sistema de autenticación.
 
@@ -156,5 +156,5 @@ Acceso obligatorio: la app permanece bloqueada hasta iniciar sesión con una cue
 - Las reparaciones antiguas ya no sustituyen cambios hechos posteriormente.
 - Confirmación real de Supabase al guardar canciones.
 
-## v4.41
+## v4.40
 Corrige el acceso de invitado al modo actuación. Antes de abrirlo, descarga de Supabase las letras y acordes incluidos en la actuación, sin exigir registro.

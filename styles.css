@@ -466,3 +466,6 @@ body.auth-locked>.topbar,body.auth-locked>#app,body.auth-locked>.app-credit,body
 .guest-song-number{display:grid;place-items:center;min-width:30px;height:30px;border-radius:999px;background:#6f1831;color:white;font-weight:700}
 .guest-song-row p{margin:5px 0 0;color:#6b5b60;font-size:.92rem}
 body.guest-access-mode .app-header,body.guest-access-mode .bottom-nav{display:none!important}
+
+html.guest-boot #authGate, body.guest-access-mode #authGate{display:none!important}
+body.guest-booting .topbar,body.guest-booting .bottom-nav,body.guest-booting .app-credit{display:none!important}

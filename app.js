@@ -834,7 +834,8 @@ function vmBindAuthGate(){
  reg.onsubmit=async e=>{e.preventDefault();const err=vmGateEl('authRegError'),btn=reg.querySelector('button[type="submit"]');err.hidden=true;btn.disabled=true;btn.textContent='Enviando…';try{if(!cloudClient)await initCloud();if(!cloudClient)throw new Error('No se ha podido conectar con Supabase.');const data=await registerMemberPassword(vmGateEl('authRegEmail').value,vmGateEl('authRegPassword').value,vmGateEl('authRegPassword2').value,vmGateEl('authRegName').value);if(data?.session){await syncMemberSession(data.session);vmShowPendingGate()}else{vmGateSetScreen('login','Cuenta creada. Confirma el correo si Supabase te ha enviado un mensaje y después inicia sesión.')}}catch(ex){let m=ex?.message||'No se pudo crear la cuenta.';if(/user already registered/i.test(m))m='Ese correo ya está registrado. Inicia sesión.';err.textContent=m;err.hidden=false}finally{btn.disabled=false;btn.textContent='Enviar solicitud'}};
 }
 async function vmAuthGateBoot(){
- if(guestAccess?.token){const gate=vmGateEl('authGate');if(gate)gate.hidden=true;document.body.classList.remove('auth-locked');return}
+ const directGuestToken=String(window.__VM_GUEST_TOKEN||new URLSearchParams(location.search).get('guest')||'').trim();
+ if(directGuestToken){guestAccess.token=directGuestToken;const gate=vmGateEl('authGate');if(gate)gate.hidden=true;document.body.classList.remove('auth-locked');document.body.classList.add('guest-access-mode');return}
  vmBindAuthGate(); vmGateSetScreen('loading','Conectando con el grupo…');
  await vmAuthGateCheck();
  try{cloudClient?.auth?.onAuthStateChange(async(_event,session)=>{memberState.session=session||null;if(!session){memberState.profile=null;vmGateSetScreen('login','Inicia sesión para acceder al Cancionero Valdemedel.');return}await syncMemberSession(session);if(vmGateProfileApproved())vmUnlockApp();else vmShowPendingGate()})}catch(e){console.warn('Auth gate listener',e)}
@@ -909,10 +910,12 @@ window.addEventListener('beforeunload',()=>{
    ========================================================== */
 (function vmGuestAccessV437(){
  const params=new URLSearchParams(location.search);
- const token=String(params.get('guest')||'').trim();
+ const token=String(window.__VM_GUEST_TOKEN||params.get('guest')||'').trim();
  if(!token)return;
 
  function unlockGuestScreen(){
+  const fallback=document.getElementById('guestBootFallback');if(fallback)fallback.remove();
+  document.body.classList.remove('guest-booting');
   const gate=document.getElementById('authGate');
   if(gate)gate.hidden=true;
   document.body.classList.remove('auth-locked');
@@ -932,11 +935,13 @@ window.addEventListener('beforeunload',()=>{
    const key=String(CLOUD_CONFIG?.publishableKey||'').trim();
    if(!base||!key)throw new Error('La conexión compartida no está configurada.');
    const query=new URLSearchParams({select:'*',guest_token:'eq.'+token,limit:'1'});
+   const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),12000);
    const response=await fetch(base+'/rest/v1/performances?'+query.toString(),{
     method:'GET',
     cache:'no-store',
-    headers:{apikey:key,Authorization:'Bearer '+key,Accept:'application/json'}
+    headers:{apikey:key,Authorization:'Bearer '+key,Accept:'application/json'},signal:controller.signal
    });
+   clearTimeout(timeout);
    const payload=await response.json().catch(()=>null);
    if(!response.ok){
     const message=payload?.message||payload?.error_description||('Error '+response.status);
@@ -966,8 +971,7 @@ window.addEventListener('beforeunload',()=>{
 
  unlockGuestScreen();
  // Ejecutamos una carga directa independiente de la sesión y del cliente Auth.
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fetchGuestPerformanceDirect,{once:true});
- else fetchGuestPerformanceDirect();
+ fetchGuestPerformanceDirect();
 })();
 
 /* ==========================================================
@@ -1136,3 +1140,5 @@ window.addEventListener('beforeunload',()=>{
   startGuestPerformance();
  });
 })();
+
+/* v4.42: arranque invitado previo a Auth, estable tambien en navegacion privada. */
