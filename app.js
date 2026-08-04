@@ -261,10 +261,10 @@ function songCard(s){const inRep=state.rep.includes(s.id);const chord=s.chordMod
 function bindSongCards(){$$('[data-open]').forEach(x=>x.onclick=()=>{state.current=x.dataset.open;render()});$$('[data-add]').forEach(x=>x.onclick=e=>{e.stopPropagation();toggleRep(x.dataset.add)})}
 function toggleRep(id){state.rep=state.rep.includes(id)?state.rep.filter(x=>x!==id):[...state.rep,id];persist();schedulePerformanceAutosave();render()}
 function chordPanel(s){if(s.chordMode==='none')return '<div class="chord-panel"><h3>Acordes</h3><div>Esta canción se muestra sin acordes.</div></div>';if(s.chordMode==='pending')return '<div class="chord-panel"><h3>Acordes</h3><div>Pendientes de completar desde «Editar canción».</div></div>';if(s.chordMode==='inline')return s.key?`<div class="chord-panel"><h3>Tonalidad</h3><div class="chord-line">${esc(s.key)}</div></div>`:'';if(s.chordMode==='general')return `<div class="chord-panel"><h3>${s.key?'Tonalidad: '+esc(s.key):'Acordes generales'}</h3><div class="chord-line">${esc(s.generalChords||s.key)}</div></div>`;return `<div class="chord-panel"><h3>${s.key?'Tonalidad: '+esc(s.key):'Acordes por partes'}</h3>${(s.sections||[]).map(x=>`<div><strong>${esc(x.name)}:</strong> <span class="chord-line">${esc(x.chords)}</span></div>`).join('')}</div>`}
-function renderSong(){const s=state.songs.find(x=>x.id===state.current);if(!s){state.current=null;return render()}const idx=state.rep.indexOf(s.id);const text=s.chordMode==='inline'?(s.inlineContent||s.lyrics):s.lyrics;app.innerHTML=`<div class="toolbar no-print"><button class="btn secondary" id="back">← Volver</button><button class="btn" id="add">${state.rep.includes(s.id)?'Quitar del repertorio':'Añadir al repertorio'}</button>${state.isAdmin?'<button class="btn secondary" id="edit">Editar</button>':''}<button class="btn secondary" id="bigger">A+</button><button class="btn secondary" id="smaller">A-</button></div><article class="song-view"><header class="song-head"><h1>${esc(s.title)}</h1><p>${esc(s.category)}${s.duration?' · '+esc(s.duration):''}</p></header>${chordPanel(s)}${s.notes?`<div class="song-notes"><strong>Observaciones:</strong> ${esc(s.notes)}</div>`:''}${s.voices?`<div class="song-notes"><strong>Voces:</strong> ${esc(s.voices)}</div>`:''}<div id="lyrics" class="song-content formatted-lyrics">${formatLyricsHtml(text)}</div></article>${idx>=0?`<div class="toolbar no-print" style="margin-top:12px"><button class="btn secondary" id="prev">← Anterior</button><button class="btn" id="next">Siguiente →</button></div>`:''}`;$('#back').onclick=()=>{state.current=null;render()};$('#add').onclick=()=>toggleRep(s.id);if($('#edit'))$('#edit').onclick=()=>openEditor(s);let size=17;$('#bigger').onclick=()=>{size=Math.min(30,size+1);$('#lyrics').style.fontSize=size+'px'};$('#smaller').onclick=()=>{size=Math.max(12,size-1);$('#lyrics').style.fontSize=size+'px'};if(idx>=0){$('#prev').onclick=()=>{state.current=state.rep[(idx-1+state.rep.length)%state.rep.length];render()};$('#next').onclick=()=>{state.current=state.rep[(idx+1)%state.rep.length];render()}}}
+function renderSong(){const s=state.songs.find(x=>String(x.id)===String(state.current));if(!s){state.current=null;return render()}const idx=state.rep.findIndex(id=>String(id)===String(s.id));const text=s.chordMode==='inline'?(s.inlineContent||s.lyrics):s.lyrics;app.innerHTML=`<div class="toolbar no-print"><button class="btn secondary" id="back">← Volver</button><button class="btn" id="add">${state.rep.includes(s.id)?'Quitar del repertorio':'Añadir al repertorio'}</button>${state.isAdmin?'<button class="btn secondary" id="edit">Editar</button>':''}<button class="btn secondary" id="bigger">A+</button><button class="btn secondary" id="smaller">A-</button></div><article class="song-view"><header class="song-head"><h1>${esc(s.title)}</h1><p>${esc(s.category)}${s.duration?' · '+esc(s.duration):''}</p></header>${chordPanel(s)}${s.notes?`<div class="song-notes"><strong>Observaciones:</strong> ${esc(s.notes)}</div>`:''}${s.voices?`<div class="song-notes"><strong>Voces:</strong> ${esc(s.voices)}</div>`:''}<div id="lyrics" class="song-content formatted-lyrics">${formatLyricsHtml(text)}</div></article>${idx>=0?`<div class="toolbar no-print" style="margin-top:12px"><button class="btn secondary" id="prev">← Anterior</button><button class="btn" id="next">Siguiente →</button></div>`:''}`;$('#back').onclick=()=>{state.current=null;render()};$('#add').onclick=()=>toggleRep(s.id);if($('#edit'))$('#edit').onclick=()=>openEditor(s);let size=17;$('#bigger').onclick=()=>{size=Math.min(30,size+1);$('#lyrics').style.fontSize=size+'px'};$('#smaller').onclick=()=>{size=Math.max(12,size-1);$('#lyrics').style.fontSize=size+'px'};if(idx>=0){$('#prev').onclick=()=>{state.current=state.rep[(idx-1+state.rep.length)%state.rep.length];render()};$('#next').onclick=()=>{state.current=state.rep[(idx+1)%state.rep.length];render()}}}
 function renderPerformanceMode(){
- const s=state.songs.find(x=>x.id===state.current);if(!s){state.performanceMode=false;state.current=null;return render()}
- const idx=state.rep.indexOf(s.id);const text=String(s.chordMode==='inline'?(s.inlineContent||s.lyrics):s.lyrics||'').replace(/\r\n?/g,'\n').trim();
+ const s=state.songs.find(x=>String(x.id)===String(state.current));if(!s){state.performanceMode=false;state.current=null;return render()}
+ const idx=Math.max(0,state.rep.findIndex(id=>String(id)===String(s.id)));const text=String(s.chordMode==='inline'?(s.inlineContent||s.lyrics):s.lyrics||'').replace(/\r\n?/g,'\n').trim();
  const blocks=text.split(/\n[ \t]*\n+/).map(x=>x.trim()).filter(Boolean);
  const infoAvailable=hasSongInfo(s);
  document.body.classList.add('performing');
@@ -1121,4 +1121,61 @@ window.addEventListener('beforeunload',()=>{
   event.stopImmediatePropagation();
   openGuestPerformance();
  },true);
+})();
+
+
+/* ==========================================================
+   v4.40 · Reparación definitiva del modo actuación invitado
+   ========================================================== */
+(function vmGuestPerformanceV440(){
+ const token=String(new URLSearchParams(location.search).get('guest')||'').trim();
+ if(!token)return;
+
+ function normalizeGuestRepertoire(performance){
+  const ids=(performance?.songs||[]).map(id=>String(id));
+  state.rep=ids;
+  state.repAnnotations={...(performance?.annotations||{})};
+  state.performances=[performance];
+  return ids;
+ }
+
+ async function startGuestPerformanceV440(){
+  const p=guestAccess?.performance;
+  if(!p)return;
+  const button=document.getElementById('guestPerform');
+  if(button){button.disabled=true;button.textContent='Preparando…'}
+  try{
+   if(typeof ensureGuestSongs==='function')await ensureGuestSongs(p);
+   const ids=normalizeGuestRepertoire(p);
+   const first=ids.find(id=>state.songs.some(song=>String(song.id)===id));
+   if(!first)throw new Error('No hay letras disponibles para esta actuación');
+   state.current=String(first);
+   state.performanceMode=true;
+   guestAccess.mode='performance';
+   document.body.classList.add('guest-access-mode');
+   const gate=document.getElementById('authGate');if(gate)gate.hidden=true;
+   document.body.classList.remove('auth-locked');
+   render();
+  }catch(error){
+   console.error('Modo actuación invitado v4.40',error);
+   if(button){button.disabled=false;button.textContent='Modo actuación'}
+   alert('No se ha podido abrir el modo actuación. Pulsa Actualizar y vuelve a intentarlo.');
+  }
+ }
+
+ document.addEventListener('click',event=>{
+  const target=event.target.closest?.('#guestPerform');
+  if(!target)return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  startGuestPerformanceV440();
+ },true);
+
+ const oldRenderGuest=renderGuestAccess;
+ renderGuestAccess=function(){
+  const out=oldRenderGuest();
+  const btn=document.getElementById('guestPerform');
+  if(btn)btn.onclick=startGuestPerformanceV440;
+  return out;
+ };
 })();
