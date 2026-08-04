@@ -428,58 +428,107 @@ function openTuner(){
   {short:'2ª',label:'2ª cuerda',name:'Si',note:'B3',freq:246.94},
   {short:'1ª',label:'1ª cuerda',name:'Mi agudo',note:'E4',freq:329.63}
  ];
- let selected=0;
- const modal=document.createElement('div');modal.className='modal tuner-modal';
- modal.innerHTML=`<div class="modal-card tuner-card tuner-guitar-card"><div class="modal-head"><div><span class="info-kicker">Afinador de guitarra</span><h2>Afinador fácil</h2></div><button class="close">×</button></div><div class="tuner-target-grid">${guitarStrings.map((s,i)=>`<button class="tuner-string-btn ${i===0?'active':''}" data-string="${i}"><strong>${s.short}</strong><span>${s.note}</span><small>${s.name}</small></button>`).join('')}</div><div class="tuner-display"><div id="tunerSelected" class="tuner-selected">Afinando ${guitarStrings[0].label} · ${guitarStrings[0].name} (${guitarStrings[0].note})</div><div id="tunerNote" class="tuner-note">${guitarStrings[0].note}</div><div id="tunerHz" class="tuner-hz">Toca solo la cuerda elegida</div><div class="tuner-meter"><div class="tuner-center"></div><div id="tunerNeedle" class="tuner-needle"></div></div><div id="tunerTarget" class="tuner-target-hint">Objetivo: ${guitarStrings[0].freq.toFixed(1)} Hz</div><div id="tunerStatus" class="tuner-status">Selecciona la cuerda y pulsa iniciar</div></div><div class="toolbar tuner-toolbar"><button class="btn" id="startTuner">Iniciar micrófono</button><button class="btn secondary" id="stopTuner" disabled>Detener</button><button class="btn secondary" id="playReference">Escuchar nota</button></div><p class="tuner-privacy">Selecciona la cuerda que quieres afinar y toca solo esa cuerda. Si marca “Aprieta”, sube la afinación. Si marca “Afloja”, baja la afinación.</p></div>`;
- document.body.append(modal);let ctx,stream,raf,analyser,buffer;const close=()=>{stop();modal.remove()};modal.querySelector('.close').onclick=close;modal.onclick=e=>{if(e.target===modal)close()};
- function autoCorrelate(buf,sr){let size=buf.length,rms=0;for(let i=0;i<size;i++)rms+=buf[i]*buf[i];rms=Math.sqrt(rms/size);if(rms<0.01)return -1;let r1=0,r2=size-1,th=.2;for(let i=0;i<size/2;i++){if(Math.abs(buf[i])<th){r1=i;break}}for(let i=1;i<size/2;i++){if(Math.abs(buf[size-i])<th){r2=size-i;break}}buf=buf.slice(r1,r2);size=buf.length;const c=new Array(size).fill(0);for(let i=0;i<size;i++)for(let j=0;j<size-i;j++)c[i]+=buf[j]*buf[j+i];let d=0;while(d+1<size&&c[d]>c[d+1])d++;let max=-1,pos=-1;for(let i=d;i<size;i++)if(c[i]>max){max=c[i];pos=i}if(pos<1)return -1;let T0=pos;const x1=c[T0-1]||c[T0],x2=c[T0],x3=c[T0+1]||c[T0];const a=(x1+x3-2*x2)/2,b=(x3-x1)/2;if(a)T0-=b/(2*a);return sr/T0}
- const notes=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
- const q=(sel)=>modal.querySelector(sel);
- function currentString(){return guitarStrings[selected]}
+ const noteNames=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+ let selected=0, mode='guitar', ctx=null, stream=null, raf=null, analyser=null, buffer=null, stableCounter=0, lastAdvancedAt=0;
+ const modal=document.createElement('div');
+ modal.className='modal tuner-modal';
+ modal.innerHTML=`<div class="modal-card tuner-card tuner-guitar-card">
+   <div class="modal-head"><div><span class="info-kicker">Afinador</span><h2>Afinador de guitarra</h2></div><button class="close">×</button></div>
+   <div class="tuner-mode-switch" role="tablist" aria-label="Modo de afinador">
+     <button class="tuner-mode-btn active" data-mode="guitar">Guitarra</button>
+     <button class="tuner-mode-btn" data-mode="chromatic">Cromático</button>
+   </div>
+   <div class="tuner-guitar-visual" id="tunerGuitarVisual">${guitarStrings.map((s,i)=>`<button class="tuner-string-line ${i===0?'active':''}" data-string="${i}" aria-label="${s.label}"><span class="tuner-string-name">${s.short}</span><span class="tuner-string-wire"></span><span class="tuner-string-note">${s.note}</span></button>`).join('')}</div>
+   <div class="tuner-target-grid" id="tunerTargetGrid">${guitarStrings.map((s,i)=>`<button class="tuner-string-btn ${i===0?'active':''}" data-string="${i}"><strong>${s.short}</strong><span>${s.note}</span><small>${s.name}</small></button>`).join('')}</div>
+   <div class="tuner-display">
+      <div id="tunerSelected" class="tuner-selected">Afinando ${guitarStrings[0].label} · ${guitarStrings[0].name} (${guitarStrings[0].note})</div>
+      <div id="tunerNote" class="tuner-note">${guitarStrings[0].note}</div>
+      <div id="tunerHz" class="tuner-hz">Toca solo la cuerda elegida</div>
+      <div class="tuner-meter"><div class="tuner-center"></div><div id="tunerNeedle" class="tuner-needle"></div></div>
+      <div id="tunerTarget" class="tuner-target-hint">Objetivo: ${guitarStrings[0].freq.toFixed(1)} Hz</div>
+      <div id="tunerStatus" class="tuner-status">Selecciona la cuerda y pulsa iniciar</div>
+      <div id="tunerAutoNext" class="tuner-auto-next">Autoavance activado: al afinar una cuerda pasará a la siguiente.</div>
+   </div>
+   <div class="toolbar tuner-toolbar">
+      <button class="btn" id="startTuner">Iniciar micrófono</button>
+      <button class="btn secondary" id="stopTuner" disabled>Detener</button>
+      <button class="btn secondary" id="playReference">Escuchar nota</button>
+      <button class="btn secondary" id="toggleAutoNext">Autoavance: Sí</button>
+   </div>
+   <p class="tuner-privacy" id="tunerHelp">Selecciona la cuerda que quieres afinar y toca solo esa cuerda. Si marca “Aprieta”, sube la afinación. Si marca “Afloja”, baja la afinación.</p>
+ </div>`;
+ document.body.append(modal);
+ const q=sel=>modal.querySelector(sel);
+ let autoNext=true;
+ function currentString(){ return guitarStrings[selected]; }
+ function autoCorrelate(buf,sr){ let size=buf.length,rms=0; for(let i=0;i<size;i++)rms+=buf[i]*buf[i]; rms=Math.sqrt(rms/size); if(rms<0.01)return -1; let r1=0,r2=size-1,th=.2; for(let i=0;i<size/2;i++){ if(Math.abs(buf[i])<th){ r1=i; break; } } for(let i=1;i<size/2;i++){ if(Math.abs(buf[size-i])<th){ r2=size-i; break; } } buf=buf.slice(r1,r2); size=buf.length; const c=new Array(size).fill(0); for(let i=0;i<size;i++)for(let j=0;j<size-i;j++)c[i]+=buf[j]*buf[j+i]; let d=0; while(d+1<size && c[d]>c[d+1])d++; let max=-1,pos=-1; for(let i=d;i<size;i++)if(c[i]>max){max=c[i];pos=i} if(pos<1)return -1; let T0=pos; const x1=c[T0-1]||c[T0],x2=c[T0],x3=c[T0+1]||c[T0]; const a=(x1+x3-2*x2)/2,b=(x3-x1)/2; if(a)T0-=b/(2*a); return sr/T0; }
+ function noteInfo(freq){ const midi=Math.round(69+12*Math.log2(freq/440)); const note=noteNames[(midi%12+12)%12]; const oct=Math.floor(midi/12)-1; const ref=440*Math.pow(2,(midi-69)/12); const cents=1200*Math.log2(freq/ref); return {midi,note,oct,ref,cents}; }
+ function setMode(nextMode){ mode=nextMode; modal.querySelectorAll('.tuner-mode-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.mode===mode)); q('#tunerGuitarVisual').style.display=mode==='guitar'?'grid':'none'; q('#tunerTargetGrid').style.display=mode==='guitar'?'grid':'none'; q('#tunerAutoNext').style.display=mode==='guitar'?'block':'none'; q('#toggleAutoNext').style.display=mode==='guitar'?'inline-flex':'none'; q('#tunerHelp').textContent=mode==='guitar'?'Selecciona la cuerda que quieres afinar y toca solo esa cuerda. Si marca “Aprieta”, sube la afinación. Si marca “Afloja”, baja la afinación.':'Modo cromático: toca la nota que quieras afinar y la app detectará automáticamente cuál es.'; updateSelectionUI(); }
  function updateSelectionUI(){
-  const target=currentString();
-  modal.querySelectorAll('[data-string]').forEach((btn,idx)=>btn.classList.toggle('active',idx===selected));
-  q('#tunerSelected').textContent=`Afinando ${target.label} · ${target.name} (${target.note})`;
-  q('#tunerTarget').textContent=`Objetivo: ${target.freq.toFixed(1)} Hz`;
-  if(!stream){q('#tunerNote').textContent=target.note;q('#tunerHz').textContent='Toca solo la cuerda elegida';q('#tunerNeedle').style.transform='translateX(0%)';q('#tunerStatus').textContent='Selecciona la cuerda y pulsa iniciar';q('#tunerStatus').className='tuner-status';}
+   const target=currentString();
+   modal.querySelectorAll('[data-string]').forEach((btn,idx)=>btn.classList.toggle('active',idx===selected));
+   if(mode==='guitar'){
+     q('#tunerSelected').textContent=`Afinando ${target.label} · ${target.name} (${target.note})`;
+     q('#tunerTarget').textContent=`Objetivo: ${target.freq.toFixed(1)} Hz`;
+     q('#tunerNote').textContent=target.note;
+     q('#tunerHz').textContent=stream?'Escuchando… toca solo la cuerda elegida':'Toca solo la cuerda elegida';
+   }else{
+     q('#tunerSelected').textContent='Modo cromático';
+     q('#tunerTarget').textContent='Objetivo: detectar la nota más cercana';
+     q('#tunerNote').textContent='♪';
+     q('#tunerHz').textContent=stream?'Escuchando… toca una nota':'Toca una nota o cuerda';
+   }
+   q('#tunerNeedle').style.transform='translateX(0%)';
+   q('#tunerStatus').textContent=stream?'Escuchando…':'Selecciona la cuerda y pulsa iniciar';
+   q('#tunerStatus').className='tuner-status';
+   q('#toggleAutoNext').textContent=`Autoavance: ${autoNext?'Sí':'No'}`;
+ }
+ function advanceString(){
+   const now=Date.now(); if(now-lastAdvancedAt<1200)return; lastAdvancedAt=now;
+   if(selected<guitarStrings.length-1){ selected+=1; updateSelectionUI(); toast('Cuerda afinada. Pasando a la siguiente.'); }
+   else { toast('Guitarra afinada.'); }
  }
  function tick(){
-  analyser.getFloatTimeDomainData(buffer);
-  const f=autoCorrelate(buffer,ctx.sampleRate),target=currentString();
-  if(f>0){
-   const cents=1200*Math.log2(f/target.freq);
-   const midi=Math.round(69+12*Math.log2(f/440));
-   const note=notes[(midi%12+12)%12],oct=Math.floor(midi/12)-1;
-   q('#tunerNote').textContent=note+oct;
-   q('#tunerHz').textContent=`${f.toFixed(1)} Hz · objetivo ${target.freq.toFixed(1)} Hz`;
-   q('#tunerNeedle').style.transform=`translateX(${Math.max(-50,Math.min(50,cents))}%)`;
-   const st=q('#tunerStatus');
-   if(Math.abs(cents)<5){st.textContent='✓ Afinada';st.className='tuner-status in-tune'}
-   else if(cents<0){st.textContent='Aprieta · está baja';st.className='tuner-status low'}
-   else {st.textContent='Afloja · está alta';st.className='tuner-status high'}
-  }else{
-   q('#tunerHz').textContent='Escuchando… toca solo la cuerda seleccionada';
-   q('#tunerNeedle').style.transform='translateX(0%)';
-   const st=q('#tunerStatus');st.textContent='Sin señal clara';st.className='tuner-status';
-  }
-  raf=requestAnimationFrame(tick)
+   analyser.getFloatTimeDomainData(buffer);
+   const f=autoCorrelate(buffer,ctx.sampleRate);
+   if(f>0){
+     if(mode==='guitar'){
+       const target=currentString(); const cents=1200*Math.log2(f/target.freq); const info=noteInfo(f);
+       q('#tunerNote').textContent=info.note+info.oct;
+       q('#tunerHz').textContent=`${f.toFixed(1)} Hz · objetivo ${target.freq.toFixed(1)} Hz`;
+       q('#tunerNeedle').style.transform=`translateX(${Math.max(-50,Math.min(50,cents))}%)`;
+       const st=q('#tunerStatus');
+       if(Math.abs(cents)<5){ stableCounter++; st.textContent='✓ Afinada'; st.className='tuner-status in-tune'; if(autoNext && stableCounter>18) { stableCounter=0; advanceString(); } }
+       else if(cents<0){ stableCounter=0; st.textContent='Aprieta · está baja'; st.className='tuner-status low'; }
+       else { stableCounter=0; st.textContent='Afloja · está alta'; st.className='tuner-status high'; }
+     }else{
+       stableCounter=0; const info=noteInfo(f); q('#tunerNote').textContent=info.note+info.oct; q('#tunerHz').textContent=`${f.toFixed(1)} Hz · referencia ${info.ref.toFixed(1)} Hz`; q('#tunerNeedle').style.transform=`translateX(${Math.max(-50,Math.min(50,info.cents))}%)`; const st=q('#tunerStatus'); if(Math.abs(info.cents)<5){ st.textContent=`✓ ${info.note}${info.oct} afinada`; st.className='tuner-status in-tune'; } else if(info.cents<0){ st.textContent=`Aprieta hacia ${info.note}${info.oct}`; st.className='tuner-status low'; } else { st.textContent=`Afloja hacia ${info.note}${info.oct}`; st.className='tuner-status high'; }
+     }
+   }else{
+     stableCounter=0; q('#tunerHz').textContent=mode==='guitar'?'Escuchando… toca solo la cuerda seleccionada':'Escuchando… toca una nota'; q('#tunerNeedle').style.transform='translateX(0%)'; const st=q('#tunerStatus'); st.textContent='Sin señal clara'; st.className='tuner-status';
+   }
+   raf=requestAnimationFrame(tick);
  }
  async function start(){
-  try{
-   stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
-   ctx=new (window.AudioContext||window.webkitAudioContext)();
-   const src=ctx.createMediaStreamSource(stream);analyser=ctx.createAnalyser();analyser.fftSize=2048;buffer=new Float32Array(analyser.fftSize);src.connect(analyser);
-   q('#startTuner').disabled=true;q('#stopTuner').disabled=false;q('#tunerStatus').textContent='Escuchando…';tick()
-  }catch(e){alert('No se pudo acceder al micrófono. Revisa el permiso del navegador.')}
+   try{
+     stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+     ctx=new (window.AudioContext||window.webkitAudioContext)();
+     const src=ctx.createMediaStreamSource(stream); analyser=ctx.createAnalyser(); analyser.fftSize=2048; buffer=new Float32Array(analyser.fftSize); src.connect(analyser);
+     q('#startTuner').disabled=true; q('#stopTuner').disabled=false; q('#tunerStatus').textContent='Escuchando…'; tick();
+   }catch(e){ alert('No se pudo acceder al micrófono. Revisa el permiso del navegador.'); }
  }
- function stop(){if(raf)cancelAnimationFrame(raf);raf=null;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}if(ctx){ctx.close().catch(()=>{});ctx=null}q('#startTuner')&&(q('#startTuner').disabled=false);q('#stopTuner')&&(q('#stopTuner').disabled=true);updateSelectionUI()}
+ function stop(){ if(raf)cancelAnimationFrame(raf); raf=null; if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } if(ctx){ ctx.close().catch(()=>{}); ctx=null; } q('#startTuner')&&(q('#startTuner').disabled=false); q('#stopTuner')&&(q('#stopTuner').disabled=true); stableCounter=0; updateSelectionUI(); }
  function playReference(){
-  const target=currentString();
-  const AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return;
-  const aCtx=new AudioCtx();const osc=aCtx.createOscillator();const gain=aCtx.createGain();osc.type='triangle';osc.frequency.value=target.freq;gain.gain.value=0.0001;osc.connect(gain);gain.connect(aCtx.destination);const now=aCtx.currentTime;gain.gain.exponentialRampToValueAtTime(0.18,now+0.05);gain.gain.exponentialRampToValueAtTime(0.0001,now+1.05);osc.start(now);osc.stop(now+1.08);osc.onended=()=>aCtx.close().catch(()=>{});
+   const AudioCtx=window.AudioContext||window.webkitAudioContext; if(!AudioCtx)return; const aCtx=new AudioCtx();
+   const osc=aCtx.createOscillator(), gain=aCtx.createGain(); osc.type='triangle'; osc.frequency.value=(mode==='guitar'?currentString().freq:440); gain.gain.value=0.0001; osc.connect(gain); gain.connect(aCtx.destination); const now=aCtx.currentTime; gain.gain.exponentialRampToValueAtTime(0.18,now+0.05); gain.gain.exponentialRampToValueAtTime(0.0001,now+1.05); osc.start(now); osc.stop(now+1.08); osc.onended=()=>aCtx.close().catch(()=>{});
  }
- modal.querySelectorAll('[data-string]').forEach(btn=>btn.onclick=()=>{selected=+btn.dataset.string||0;updateSelectionUI()});
- q('#startTuner').onclick=start;q('#stopTuner').onclick=stop;q('#playReference').onclick=playReference;updateSelectionUI();
+ const close=()=>{ stop(); modal.remove(); };
+ modal.querySelector('.close').onclick=close; modal.onclick=e=>{ if(e.target===modal)close(); };
+ modal.querySelectorAll('[data-string]').forEach(btn=>btn.onclick=()=>{ selected=+btn.dataset.string||0; stableCounter=0; updateSelectionUI(); });
+ modal.querySelectorAll('.tuner-mode-btn').forEach(btn=>btn.onclick=()=>setMode(btn.dataset.mode));
+ q('#toggleAutoNext').onclick=()=>{ autoNext=!autoNext; q('#toggleAutoNext').textContent=`Autoavance: ${autoNext?'Sí':'No'}`; };
+ q('#startTuner').onclick=start; q('#stopTuner').onclick=stop; q('#playReference').onclick=playReference;
+ setMode('guitar');
 }
 async function savePerformance(){
  if(!requireAdmin())return;
@@ -1269,7 +1318,7 @@ window.addEventListener('beforeunload',()=>{
 })();
 
 /* ==========================================================
-   v4.47 · Letras completas en modo actuación de invitados con la misma estructura
+   v4.48 · Letras completas en modo actuación de invitados con la misma estructura
    que el modo normal: ajuste automático, una/dos columnas,
    zoom y desplazamiento táctil completo.
    ========================================================== */
@@ -1304,7 +1353,7 @@ window.addEventListener('beforeunload',()=>{
   try{const local=JSON.parse(localStorage.getItem('vm2_songs')||'[]');if(Array.isArray(local))local.forEach(add)}catch{}
   try{(Array.isArray(state?.songs)?state.songs:[]).forEach(add)}catch{}
   (p.songs||[]).forEach(e=>{const f=fullEntry(e);if(f)add(f)});
-  try{const rows=await rest('shared_songs?select=*');(rows||[]).map(rowSong).filter(Boolean).forEach(add)}catch(e){console.warn('v4.47 shared_songs',e)}
+  try{const rows=await rest('shared_songs?select=*');(rows||[]).map(rowSong).filter(Boolean).forEach(add)}catch(e){console.warn('v4.48 shared_songs',e)}
   return (p.songs||[]).map((e,i)=>{
    const embedded=fullEntry(e);if(embedded&&String(embedded.lyrics||embedded.inlineContent||'').trim())return embedded;
    const id=entryId(e);
@@ -1364,7 +1413,7 @@ window.addEventListener('beforeunload',()=>{
   requestAnimationFrame(()=>requestAnimationFrame(fit));
  }
  function close(){active=false;overlay?.remove();overlay=null;document.body.classList.remove('vm446-guest-performing');if(window.guestAccess){guestAccess.mode='landing';try{renderGuestAccess()}catch{location.href=location.pathname+'?guest='+encodeURIComponent(guestToken)}}}
- async function open(){if(busy||active)return;busy=true;const loader=document.createElement('div');loader.className='vm-gp-loader';loader.textContent='Preparando modo actuación…';document.body.append(loader);try{performance=await loadPerformance();songs=await loadSongs(performance);if(!songs.length)throw new Error('Esta actuación no tiene canciones');songIndex=0;manualDelta=0;overlay=document.createElement('div');overlay.className='vm446-guest-performance';document.body.append(overlay);document.body.classList.add('vm446-guest-performing','guest-access-mode');active=true;if(window.guestAccess)guestAccess.mode='standalone-performance-v446';renderSong()}catch(e){console.error('Modo invitado v4.47',e);alert('No se ha podido preparar el modo actuación: '+(e?.message||'error desconocido'))}finally{loader.remove();busy=false}}
+ async function open(){if(busy||active)return;busy=true;const loader=document.createElement('div');loader.className='vm-gp-loader';loader.textContent='Preparando modo actuación…';document.body.append(loader);try{performance=await loadPerformance();songs=await loadSongs(performance);if(!songs.length)throw new Error('Esta actuación no tiene canciones');songIndex=0;manualDelta=0;overlay=document.createElement('div');overlay.className='vm446-guest-performance';document.body.append(overlay);document.body.classList.add('vm446-guest-performing','guest-access-mode');active=true;if(window.guestAccess)guestAccess.mode='standalone-performance-v446';renderSong()}catch(e){console.error('Modo invitado v4.48',e);alert('No se ha podido preparar el modo actuación: '+(e?.message||'error desconocido'))}finally{loader.remove();busy=false}}
  window.addEventListener('click',e=>{const b=e.target.closest?.('#guestPerform');if(!b)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();open()},{capture:true});
  window.addEventListener('resize',()=>{if(!active)return;clearTimeout(resizeTimer);resizeTimer=setTimeout(renderSong,120)});
  window.addEventListener('popstate',()=>{if(active)close()});

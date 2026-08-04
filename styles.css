@@ -516,3 +516,26 @@ body.vm445-guest-performing{overflow:hidden!important;padding:0!important;backgr
 .tuner-toolbar{justify-content:center;flex-wrap:wrap}
 .dark .tuner-string-btn{background:#171315}.dark .tuner-string-btn.active{background:#2a1a20}
 @media(max-width:640px){.tuner-target-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tuner-selected{font-size:.96rem}.tuner-string-btn{padding:10px 8px}}
+
+
+/* v4.48 · Afinador ampliado */
+.tuner-mode-switch{display:flex;gap:8px;margin:6px 0 12px;flex-wrap:wrap}
+.tuner-mode-btn{appearance:none;border:1px solid var(--line);background:var(--surface,#fff);border-radius:999px;padding:8px 14px;font-weight:800;cursor:pointer}
+.tuner-mode-btn.active{background:#7a1637;color:#fff;border-color:#7a1637}
+.tuner-guitar-card{max-width:720px}
+.tuner-guitar-visual{display:grid;gap:8px;margin:4px 0 12px}
+.tuner-string-line{appearance:none;border:0;background:transparent;padding:0;display:grid;grid-template-columns:42px 1fr 56px;align-items:center;gap:10px;cursor:pointer}
+.tuner-string-name,.tuner-string-note{font-weight:800;color:var(--muted)}
+.tuner-string-wire{display:block;height:4px;border-radius:999px;background:linear-gradient(90deg,#c6b0b8 0%,#8d6f7a 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
+.tuner-string-line.active .tuner-string-wire{height:6px;background:linear-gradient(90deg,#c43c67 0%,#7a1637 100%);box-shadow:0 0 0 3px rgba(122,22,55,.12)}
+.tuner-string-line.active .tuner-string-name,.tuner-string-line.active .tuner-string-note{color:#7a1637}
+.tuner-target-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:6px 0 12px}
+.tuner-string-btn{appearance:none;border:1px solid var(--line);background:var(--surface,#fff);border-radius:16px;padding:12px 10px;display:grid;gap:3px;text-align:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease,background .15s ease}
+.tuner-string-btn strong{font-size:1.08rem}.tuner-string-btn span{font-weight:800}.tuner-string-btn small{color:var(--muted)}
+.tuner-string-btn.active{border-color:#7a1637;background:#fff5f8;box-shadow:0 0 0 2px rgba(122,22,55,.12);transform:translateY(-1px)}
+.tuner-selected{font-weight:800;color:var(--muted);margin-bottom:8px}
+.tuner-target-hint{font-weight:700;color:#7a1637;margin-top:-4px}
+.tuner-auto-next{margin-top:6px;font-size:.92rem;color:var(--muted)}
+.tuner-toolbar{justify-content:center;flex-wrap:wrap}
+.dark .tuner-mode-btn,.dark .tuner-string-btn{background:#171315}.dark .tuner-mode-btn.active{background:#a42d5a;border-color:#a42d5a}.dark .tuner-string-btn.active{background:#2a1a20}.dark .tuner-string-wire{background:linear-gradient(90deg,#6c5960 0%,#d0c7ca 100%)}
+@media(max-width:640px){.tuner-target-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tuner-string-line{grid-template-columns:36px 1fr 48px;gap:8px}.tuner-selected{font-size:.96rem}.tuner-string-btn{padding:10px 8px}}
