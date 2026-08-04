@@ -1,4 +1,4 @@
-# Cancionero Valdemedel v4.37
+# Cancionero Valdemedel v4.38
 
 Corrección del acceso mediante enlace de invitado. El enlace abre directamente la actuación sin registro ni inicio de sesión y consulta Supabase mediante lectura pública independiente del sistema de autenticación.
 

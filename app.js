@@ -969,3 +969,78 @@ window.addEventListener('beforeunload',()=>{
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fetchGuestPerformanceDirect,{once:true});
  else fetchGuestPerformanceDirect();
 })();
+
+/* ==========================================================
+   v4.38 · El modo invitado permanece aislado durante toda la sesión
+   Evita que las sincronizaciones periódicas de Grupo sustituyan
+   la pantalla de la actuación invitada a los pocos segundos.
+   ========================================================== */
+(function vmGuestIsolationV438(){
+ const params=new URLSearchParams(location.search);
+ const token=String(params.get('guest')||'').trim();
+ if(!token)return;
+
+ const isGuestSession=()=>Boolean(token&&guestAccess?.token);
+ const keepGuestVisible=()=>{
+  if(!isGuestSession())return false;
+  const gate=document.getElementById('authGate');
+  if(gate)gate.hidden=true;
+  document.body.classList.remove('auth-locked');
+  document.body.classList.add('guest-access-mode');
+  return true;
+ };
+
+ // Las cargas de la sección Grupo no deben ejecutarse en un enlace invitado.
+ const previousLoadGroupData=loadGroupData;
+ loadGroupData=async function(opts={}){
+  if(isGuestSession()){
+   keepGuestVisible();
+   return;
+  }
+  return previousLoadGroupData(opts);
+ };
+
+ // Algunos temporizadores llaman directamente a renderManagement(),
+ // saltándose el render general. Lo interceptamos también.
+ const previousRenderManagement=renderManagement;
+ renderManagement=function(){
+  if(isGuestSession()){
+   keepGuestVisible();
+   return renderGuestAccess();
+  }
+  return previousRenderManagement();
+ };
+
+ // Impide que una navegación o actualización automática saque al invitado
+ // de la actuación enlazada.
+ const previousNav=nav;
+ nav=function(view){
+  if(isGuestSession()){
+   keepGuestVisible();
+   if(guestAccess.mode==='performance'&&state.performanceMode)return render();
+   return renderGuestAccess();
+  }
+  return previousNav(view);
+ };
+
+ // Defensa adicional ante llamadas antiguas que cambien la vista o el HTML.
+ const guestWatchdog=setInterval(()=>{
+  if(!isGuestSession()){
+   clearInterval(guestWatchdog);
+   return;
+  }
+  keepGuestVisible();
+  const guestPage=document.querySelector('.guest-page');
+  const inPerformance=guestAccess.mode==='performance'&&state.performanceMode;
+  if(!guestPage&&!inPerformance){
+   try{renderGuestAccess()}catch(error){console.error('Restauración invitado v4.38',error)}
+  }
+ },1000);
+
+ window.addEventListener('pageshow',()=>{
+  if(isGuestSession()){
+   keepGuestVisible();
+   if(!(guestAccess.mode==='performance'&&state.performanceMode))renderGuestAccess();
+  }
+ });
+})();
