@@ -131,5 +131,5 @@ Este paquete ya incluye la URL del proyecto, la Publishable key y el correo admi
 - Mantiene Grupo como pantalla inicial y conserva usuarios, roles, participantes e invitados.
 
 
-## v4.31
+## v4.32
 Acceso obligatorio: la app permanece bloqueada hasta iniciar sesión con una cuenta aprobada. Los registros pendientes solo ven su estado de aprobación.
