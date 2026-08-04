@@ -657,7 +657,7 @@ const navV423=nav;nav=function(v){if(v==='settings'&&!isTotalAdmin())v='library'
 /* ==========================================================
    v4.24 · Inicio en Grupo, acceso visible e invitados por actuación
    ========================================================== */
-const guestAccess={token:new URLSearchParams(location.search).get('guest')||'',performance:null,loading:Boolean(new URLSearchParams(location.search).get('guest')),error:''};
+const guestAccess={token:new URLSearchParams(location.search).get('guest')||'',performance:null,loading:Boolean(new URLSearchParams(location.search).get('guest')),error:'',mode:'landing'};
 function makeGuestToken(){return (crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2))}
 function openParticipants(id){
  const p=state.performances.find(x=>String(x.id)===String(id));if(!p)return alert('No se ha encontrado la actuación.');
@@ -678,13 +678,19 @@ async function loadGuestPerformance(){
 }
 function renderGuestAccess(){
  document.body.classList.add('guest-access-mode');const p=guestAccess.performance;
+ const gate=document.getElementById('authGate');if(gate)gate.hidden=true;document.body.classList.remove('auth-locked');
  if(guestAccess.loading){app.innerHTML='<div class="guest-page"><div class="group-empty">Cargando actuación invitada…</div></div>';return}
  if(!p){app.innerHTML=`<div class="guest-page"><div class="guest-card"><img src="logo-burdeos.png" alt="Valdemedel"><h1>Acceso de invitado</h1><p>${esc(guestAccess.error||'No se ha podido abrir la actuación.')}</p></div></div>`;return}
  const participants=Array.isArray(p.participants)?p.participants:[];
- app.innerHTML=`<div class="guest-page"><div class="guest-card"><img src="logo-burdeos.png" alt="Valdemedel"><span class="eyebrow dark-eyebrow">Invitación</span><h1>${esc(p.name)}</h1><p class="guest-meta">${esc(p.date||'')}${p.place?' · '+esc(p.place):''}</p><div class="guest-stats"><span>${(p.songs||[]).length} canciones</span><span>${participants.length} participantes</span></div><div class="toolbar"><button class="btn" id="guestOpenRep">Ver repertorio</button><button class="btn secondary" id="guestPerform">Modo actuación</button>${p.dancePdfUrl?`<a class="btn secondary" href="${esc(p.dancePdfUrl)}" target="_blank" rel="noopener">PDF bailarines</a>`:''}</div>${participants.length?`<section class="guest-participants"><h2>Participantes</h2><ol>${participants.map(x=>`<li>${esc(x)}</li>`).join('')}</ol></section>`:''}<p class="guest-note">Este enlace da acceso únicamente a esta actuación.</p></div></div>`;
- $('#guestOpenRep').onclick=()=>{guestAccess.token='';document.body.classList.remove('guest-access-mode');state.performances=[p];openSavedPerformance(p.id)};$('#guestPerform').onclick=()=>{guestAccess.token='';document.body.classList.remove('guest-access-mode');state.performances=[p];state.rep=[...(p.songs||[])];state.repAnnotations={...(p.annotations||{})};state.current=state.rep[0];state.performanceMode=true;render()}
+ if(guestAccess.mode==='repertoire'){
+  const rows=(p.songs||[]).map((id,i)=>{const song=state.songs.find(s=>String(s.id)===String(id));const title=song?.title||song?.name||`Canción ${i+1}`;const note=(p.annotations||{})[id]||'';return `<li class="guest-song-row"><span class="guest-song-number">${i+1}</span><div><strong>${esc(title)}</strong>${note?`<p>📝 ${esc(note)}</p>`:''}</div></li>`}).join('');
+  app.innerHTML=`<div class="guest-page"><div class="guest-card guest-repertoire-card"><div class="modal-head"><div><span class="eyebrow dark-eyebrow">Repertorio invitado</span><h1>${esc(p.name)}</h1></div><button class="icon-btn" id="guestBack">×</button></div><p class="guest-meta">${esc(p.date||'')}${p.place?' · '+esc(p.place):''}</p><ol class="guest-song-list">${rows||'<li>No hay canciones.</li>'}</ol><div class="toolbar"><button class="btn" id="guestPerform">Modo actuación</button><button class="btn secondary" id="guestBack2">Volver</button></div><p class="guest-note">Acceso limitado únicamente a esta actuación.</p></div></div>`;
+  const back=()=>{guestAccess.mode='landing';render()};$('#guestBack').onclick=back;$('#guestBack2').onclick=back;$('#guestPerform').onclick=()=>{state.performances=[p];state.rep=[...(p.songs||[])];state.repAnnotations={...(p.annotations||{})};state.current=state.rep[0];state.performanceMode=true;guestAccess.mode='performance';render()};return;
+ }
+ app.innerHTML=`<div class="guest-page"><div class="guest-card"><img src="logo-burdeos.png" alt="Valdemedel"><span class="eyebrow dark-eyebrow">Invitación</span><h1>${esc(p.name)}</h1><p class="guest-meta">${esc(p.date||'')}${p.place?' · '+esc(p.place):''}</p><div class="guest-stats"><span>${(p.songs||[]).length} canciones</span><span>${participants.length} participantes</span></div><div class="toolbar"><button class="btn" id="guestOpenRep">Ver repertorio</button><button class="btn secondary" id="guestPerform">Modo actuación</button>${p.dancePdfUrl?`<a class="btn secondary" href="${esc(p.dancePdfUrl)}" target="_blank" rel="noopener">PDF bailarines</a>`:''}</div>${participants.length?`<section class="guest-participants"><h2>Participantes</h2><ol>${participants.map(x=>`<li>${esc(x)}</li>`).join('')}</ol></section>`:''}<p class="guest-note">Este enlace da acceso únicamente a esta actuación. No requiere registro ni inicio de sesión.</p></div></div>`;
+ $('#guestOpenRep').onclick=()=>{guestAccess.mode='repertoire';render()};$('#guestPerform').onclick=()=>{state.performances=[p];state.rep=[...(p.songs||[])];state.repAnnotations={...(p.annotations||{})};state.current=state.rep[0];state.performanceMode=true;guestAccess.mode='performance';render()}
 }
-const renderV424=render;render=function(){if(guestAccess.token)return renderGuestAccess();return renderV424()};
+const renderV424=render;render=function(){if(guestAccess.token){if(guestAccess.mode==='performance'&&state.performanceMode){document.body.classList.add('guest-access-mode');const gate=document.getElementById('authGate');if(gate)gate.hidden=true;document.body.classList.remove('auth-locked');return renderV424()}if(guestAccess.mode==='performance'&&!state.performanceMode)guestAccess.mode='landing';return renderGuestAccess()}return renderV424()};
 const initCloudV424=initCloud;initCloud=async function(){await initCloudV424();if(guestAccess.token)loadGuestPerformance()};
 const profileMarkupV424=profileMarkup;profileMarkup=function(){if(!currentUser())return `<div class="profile-strip access-first-card"><div><span class="eyebrow dark-eyebrow">Primer paso</span><strong>Identifícate o crea tu cuenta</strong><span>Entra para confirmar ensayos, responder encuestas y acceder a las funciones del grupo.</span></div><button class="btn" id="memberLoginFromGroup">Entrar / Registrarme</button></div>`;return profileMarkupV424()};
 $('#homeBtn').onclick=()=>nav('management');
@@ -710,10 +716,10 @@ const initCloudV429=initCloud;initCloud=async function(){await initCloudV429();t
 const refreshCloudPerformancesV429=refreshCloudPerformances;refreshCloudPerformances=async function(opts={}){const out=await refreshCloudPerformancesV429(opts);try{await loadSharedSongs();await ensureRondenaRabiosaVillar()}catch(e){console.warn(e)}return out};
 
 /* ==========================================================
-   v4.30 · Acceso obligatorio. Sin sesión aprobada no se
+   v4.31 · Acceso obligatorio con excepción segura para invitados. Sin sesión aprobada no se
    renderiza ni se muestra ninguna sección de la aplicación.
    ========================================================== */
-const VM_AUTH_GATE_VERSION='4.30';
+const VM_AUTH_GATE_VERSION='4.31';
 function vmGateEl(id){return document.getElementById(id)}
 function vmGateSetScreen(screen,message=''){
  const gate=vmGateEl('authGate'); if(!gate)return;
@@ -766,6 +772,7 @@ function vmBindAuthGate(){
  reg.onsubmit=async e=>{e.preventDefault();const err=vmGateEl('authRegError'),btn=reg.querySelector('button[type="submit"]');err.hidden=true;btn.disabled=true;btn.textContent='Enviando…';try{if(!cloudClient)await initCloud();if(!cloudClient)throw new Error('No se ha podido conectar con Supabase.');const data=await registerMemberPassword(vmGateEl('authRegEmail').value,vmGateEl('authRegPassword').value,vmGateEl('authRegPassword2').value,vmGateEl('authRegName').value);if(data?.session){await syncMemberSession(data.session);vmShowPendingGate()}else{vmGateSetScreen('login','Cuenta creada. Confirma el correo si Supabase te ha enviado un mensaje y después inicia sesión.')}}catch(ex){let m=ex?.message||'No se pudo crear la cuenta.';if(/user already registered/i.test(m))m='Ese correo ya está registrado. Inicia sesión.';err.textContent=m;err.hidden=false}finally{btn.disabled=false;btn.textContent='Enviar solicitud'}};
 }
 async function vmAuthGateBoot(){
+ if(guestAccess?.token){const gate=vmGateEl('authGate');if(gate)gate.hidden=true;document.body.classList.remove('auth-locked');return}
  vmBindAuthGate(); vmGateSetScreen('loading','Conectando con el grupo…');
  await vmAuthGateCheck();
  try{cloudClient?.auth?.onAuthStateChange(async(_event,session)=>{memberState.session=session||null;if(!session){memberState.profile=null;vmGateSetScreen('login','Inicia sesión para acceder al Cancionero Valdemedel.');return}await syncMemberSession(session);if(vmGateProfileApproved())vmUnlockApp();else vmShowPendingGate()})}catch(e){console.warn('Auth gate listener',e)}
