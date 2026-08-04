@@ -1142,3 +1142,76 @@ window.addEventListener('beforeunload',()=>{
 })();
 
 /* v4.42: arranque invitado previo a Auth, estable tambien en navegacion privada. */
+
+/* ==========================================================
+   v4.43 · Modo actuación de invitado independiente
+   No utiliza el render general, el estado de autenticación ni
+   los controladores heredados del botón de invitado.
+   ========================================================== */
+(function vmGuestStandalonePerformanceV443(){
+ const guestToken=String(window.__VM_GUEST_TOKEN||new URLSearchParams(location.search).get('guest')||'').trim();
+ if(!guestToken)return;
+ let busy=false,overlay=null,songs=[],performance=null,index=0,fontSize=19;
+ const config=window.VALDEMEDEL_CLOUD||{};
+ const escV=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const norm=v=>String(v??'');
+ const entryId=e=>e&&typeof e==='object'?norm(e.id):norm(e);
+ const fullEntry=e=>e&&typeof e==='object'&&(e.lyrics||e.inlineContent||e.data)?(e.data&&typeof e.data==='object'?{...e.data,id:e.id||e.data.id}:e):null;
+ function rowSong(row){if(!row)return null;const data=row.data&&typeof row.data==='object'?row.data:(row.song_data&&typeof row.song_data==='object'?row.song_data:{});return {...data,id:norm(row.id||data.id),title:row.title||data.title||'Canción',updatedAt:row.updated_at||data.updatedAt||''}}
+ async function rest(path){
+  const base=String(config.url||'').replace(/\/$/,'');
+  if(!base||!config.publishableKey)throw new Error('Falta la configuración pública de Supabase');
+  const response=await fetch(base+'/rest/v1/'+path,{headers:{apikey:config.publishableKey,Authorization:'Bearer '+config.publishableKey,Accept:'application/json','Cache-Control':'no-cache'},cache:'no-store'});
+  if(!response.ok)throw new Error((await response.text())||('HTTP '+response.status));
+  return response.json();
+ }
+ async function getPerformance(){
+  if(guestAccess?.performance&&String(guestAccess.token||'')===guestToken)return guestAccess.performance;
+  const rows=await rest('performances?select=*&guest_token=eq.'+encodeURIComponent(guestToken)+'&limit=1');
+  if(!rows?.length)throw new Error('La invitación no existe o ya no está disponible');
+  return typeof performanceFromRow==='function'?performanceFromRow(rows[0]):rows[0];
+ }
+ async function getSongs(p){
+  const map=new Map();
+  (Array.isArray(state?.songs)?state.songs:[]).forEach(s=>map.set(norm(s.id),s));
+  (p.songs||[]).forEach(e=>{const full=fullEntry(e);if(full)map.set(entryId(e),full)});
+  try{const rows=await rest('shared_songs?select=*');(rows||[]).map(rowSong).filter(Boolean).forEach(s=>map.set(norm(s.id),s))}catch(error){console.warn('v4.43: no se pudo descargar shared_songs',error)}
+  return (p.songs||[]).map((entry,i)=>{
+   const id=entryId(entry),found=map.get(id);
+   if(found)return found;
+   const full=fullEntry(entry);if(full)return full;
+   return {id,title:(entry&&typeof entry==='object'&&(entry.title||entry.name))||`Canción ${i+1}`,lyrics:'Letra no disponible en este enlace.',inlineContent:'',chordMode:'none',generalChords:'',key:'',sections:[]};
+  });
+ }
+ function chordText(s){
+  if(s.chordMode==='sections'&&Array.isArray(s.sections)&&s.sections.length)return s.sections.map(x=>`${x.name||'Parte'}: ${x.chords||'—'}`).join('\n');
+  if(s.chordMode==='general')return [s.key?`Tonalidad: ${s.key}`:'',s.generalChords||''].filter(Boolean).join(' · ');
+  if(s.chordMode==='inline')return s.key?`Tonalidad: ${s.key}`:'';
+  return '';
+ }
+ function lyricHtml(text){
+  let h=escV(text||'Letra pendiente.');
+  h=h.replace(/^\s*\[(H|M|T)\]\s*/gm,'<span class="vm-voice $1">$1</span> ')
+     .replace(/^\s*(HOMBRES|MUJERES|TODOS)\s*:?\s*$/gmi,(m,w)=>`<span class="vm-voice ${/^H/i.test(w)?'H':/^M/i.test(w)?'M':'T'}">${/^H/i.test(w)?'H':/^M/i.test(w)?'M':'T'}</span>`)
+     .replace(/\((?:bis)\)|\bBIS\b/gi,'<span class="bis">BIS</span>');
+  return h;
+ }
+ function modal(title,html){
+  const el=document.createElement('div');el.className='vm-gp-modal';el.innerHTML=`<article class="vm-gp-modal-card"><div style="display:flex;justify-content:space-between;gap:12px"><h2>${escV(title)}</h2><button class="vm-gp-btn close" data-close-modal>×</button></div>${html}<div style="margin-top:18px"><button class="vm-gp-btn primary" data-close-modal>Cerrar</button></div></article>`;document.body.append(el);el.querySelectorAll('[data-close-modal]').forEach(b=>b.onclick=()=>el.remove());el.onclick=e=>{if(e.target===el)el.remove()};
+ }
+ function showInfo(){const s=songs[index]||{};const cs=Array.isArray(s.curiosities)?s.curiosities:String(s.curiosities||'').split(/\n+/).filter(Boolean);modal('Información · '+(s.title||''),`${s.origin?`<p><b>Procedencia:</b> ${escV(s.origin)}</p>`:''}${s.history?`<h3>Historia</h3><p>${escV(s.history).replace(/\n/g,'<br>')}</p>`:''}${cs.length?`<h3>Curiosidades</h3><ul>${cs.map(x=>`<li>${escV(x)}</li>`).join('')}</ul>`:''}${s.infoSource?`<p><b>Fuente:</b> ${escV(s.infoSource)}</p>`:''}${!s.origin&&!s.history&&!cs.length&&!s.infoSource?'<p>Información pendiente de documentar.</p>':''}`)}
+ function showNote(){const s=songs[index]||{};const note=(performance?.annotations||{})[s.id]||(performance?.annotations||{})[String(s.id)]||'';modal('Anotaciones · '+(s.title||''),note?`<p>${escV(note).replace(/\n/g,'<br>')}</p>`:'<p>No hay anotaciones para esta canción.</p>')}
+ function renderSong(){
+  if(!overlay)return;const s=songs[index]||{};const text=String(s.chordMode==='inline'?(s.inlineContent||s.lyrics||''):(s.lyrics||s.inlineContent||''));const chords=chordText(s);const note=(performance?.annotations||{})[s.id]||(performance?.annotations||{})[String(s.id)]||'';
+  overlay.innerHTML=`<header class="vm-gp-head"><div class="vm-gp-title"><small>${escV(performance?.name||'Actuación')}</small><h1>${escV(s.title||'Canción')}</h1><p>${escV(chords||s.key||'')}</p></div><div class="vm-gp-actions"><button class="vm-gp-btn" data-gp-info title="Información">ⓘ <span class="label">Info</span></button><button class="vm-gp-btn ${note?'primary':''}" data-gp-note title="Anotaciones">📝 <span class="label">Nota</span></button><button class="vm-gp-btn" data-gp-smaller title="Reducir letra">A−</button><button class="vm-gp-btn" data-gp-bigger title="Ampliar letra">A+</button><button class="vm-gp-btn close" data-gp-close title="Cerrar">×</button></div></header><main class="vm-gp-sheet">${chords?`<div class="vm-gp-chords">${escV(chords)}</div>`:''}<div class="vm-gp-lyrics" style="--vm-gp-size:${fontSize}px">${lyricHtml(text)}</div></main><footer class="vm-gp-foot"><button class="vm-gp-nav" data-gp-prev>← Anterior</button><div class="vm-gp-count">${index+1} / ${songs.length} · ${escV(s.title||'')}</div><button class="vm-gp-nav" data-gp-next>Siguiente →</button><div class="vm-gp-credit">Creada por Carmona para el Grupo Folklórico Valdemedel</div></footer>`;
+  overlay.querySelector('[data-gp-info]').onclick=showInfo;overlay.querySelector('[data-gp-note]').onclick=showNote;overlay.querySelector('[data-gp-smaller]').onclick=()=>{fontSize=Math.max(11,fontSize-1);renderSong()};overlay.querySelector('[data-gp-bigger]').onclick=()=>{fontSize=Math.min(38,fontSize+1);renderSong()};overlay.querySelector('[data-gp-prev]').onclick=()=>{index=(index-1+songs.length)%songs.length;renderSong()};overlay.querySelector('[data-gp-next]').onclick=()=>{index=(index+1)%songs.length;renderSong()};overlay.querySelector('[data-gp-close]').onclick=close;
+ }
+ function close(){overlay?.remove();overlay=null;document.body.classList.remove('vm-guest-performing');guestAccess.mode='landing';try{renderGuestAccess()}catch{location.href=location.pathname+'?guest='+encodeURIComponent(guestToken)}}
+ async function open(){
+  if(busy||overlay)return;busy=true;const loader=document.createElement('div');loader.className='vm-gp-loader';loader.textContent='Preparando letras y acordes…';document.body.append(loader);
+  try{performance=await getPerformance();songs=await getSongs(performance);if(!songs.length)throw new Error('Esta actuación no tiene canciones');index=0;fontSize=window.innerWidth<620?17:19;overlay=document.createElement('section');overlay.className='vm-guest-performance';overlay.setAttribute('role','dialog');overlay.setAttribute('aria-label','Modo actuación de invitado');document.body.append(overlay);document.body.classList.add('vm-guest-performing','guest-access-mode');guestAccess.mode='standalone-performance';renderSong()}catch(error){console.error('Modo actuación invitado v4.43',error);alert('No se ha podido preparar el modo actuación: '+(error?.message||'error desconocido'))}finally{loader.remove();busy=false}
+ }
+ // Captura temprana: anula todos los controladores antiguos de #guestPerform.
+ document.addEventListener('click',event=>{const b=event.target.closest?.('#guestPerform');if(!b)return;event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();open()},{capture:true});
+ window.addEventListener('popstate',()=>{if(overlay)close()});
+})();
