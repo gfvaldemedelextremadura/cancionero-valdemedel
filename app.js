@@ -903,3 +903,69 @@ window.addEventListener('beforeunload',()=>{
   const d=collectSongEditorDraft();
   if(d)localStorage.setItem(songDraftKey(),JSON.stringify(d));
 });
+
+/* ==========================================================
+   v4.37 · Acceso de invitados robusto y sin inicio de sesión
+   ========================================================== */
+(function vmGuestAccessV437(){
+ const params=new URLSearchParams(location.search);
+ const token=String(params.get('guest')||'').trim();
+ if(!token)return;
+
+ function unlockGuestScreen(){
+  const gate=document.getElementById('authGate');
+  if(gate)gate.hidden=true;
+  document.body.classList.remove('auth-locked');
+  document.body.classList.add('guest-access-mode');
+ }
+
+ async function fetchGuestPerformanceDirect(){
+  unlockGuestScreen();
+  guestAccess.token=token;
+  guestAccess.loading=true;
+  guestAccess.error='';
+  guestAccess.mode=guestAccess.mode||'landing';
+  try{renderGuestAccess()}catch(e){console.warn('Render inicial invitado',e)}
+
+  try{
+   const base=String(CLOUD_CONFIG?.url||'').replace(/\/$/,'');
+   const key=String(CLOUD_CONFIG?.publishableKey||'').trim();
+   if(!base||!key)throw new Error('La conexión compartida no está configurada.');
+   const query=new URLSearchParams({select:'*',guest_token:'eq.'+token,limit:'1'});
+   const response=await fetch(base+'/rest/v1/performances?'+query.toString(),{
+    method:'GET',
+    cache:'no-store',
+    headers:{apikey:key,Authorization:'Bearer '+key,Accept:'application/json'}
+   });
+   const payload=await response.json().catch(()=>null);
+   if(!response.ok){
+    const message=payload?.message||payload?.error_description||('Error '+response.status);
+    throw new Error(message);
+   }
+   const row=Array.isArray(payload)?payload[0]:null;
+   if(!row)throw new Error('El enlace no corresponde a ninguna actuación disponible.');
+   guestAccess.performance=performanceFromRow(row);
+   guestAccess.error='';
+  }catch(error){
+   console.error('Acceso invitado v4.37',error);
+   guestAccess.performance=null;
+   guestAccess.error='No se ha podido abrir esta actuación. Comprueba que el enlace esté completo y vuelve a intentarlo.';
+  }finally{
+   guestAccess.loading=false;
+   unlockGuestScreen();
+   try{renderGuestAccess()}catch(error){console.error('Render invitado v4.37',error)}
+  }
+ }
+
+ // Bloquea cualquier intento posterior de mostrar la puerta de acceso normal.
+ const originalGateSetScreen=window.vmGateSetScreen||vmGateSetScreen;
+ vmGateSetScreen=function(screen,message){
+  if(guestAccess?.token){unlockGuestScreen();return}
+  return originalGateSetScreen(screen,message);
+ };
+
+ unlockGuestScreen();
+ // Ejecutamos una carga directa independiente de la sesión y del cliente Auth.
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fetchGuestPerformanceDirect,{once:true});
+ else fetchGuestPerformanceDirect();
+})();

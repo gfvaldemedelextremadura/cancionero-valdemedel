@@ -1,10 +1,6 @@
-# Cancionero Valdemedel v4.36
+# Cancionero Valdemedel v4.37
 
-Corrección del estado de nuevas solicitudes de usuario.
-
-- Una cuenta recién registrada aparece como **Solicitud pendiente de aprobación**.
-- Solo una cuenta expresamente rechazada, o una cuenta ya aprobada que después haya sido desactivada, aparece como **Acceso no autorizado**.
-- No requiere cambios SQL.
+Corrección del acceso mediante enlace de invitado. El enlace abre directamente la actuación sin registro ni inicio de sesión y consulta Supabase mediante lectura pública independiente del sistema de autenticación.
 
 # Cancionero Valdemedel v4.9
 
