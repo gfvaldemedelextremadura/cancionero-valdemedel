@@ -1046,110 +1046,66 @@ window.addEventListener('beforeunload',()=>{
 })();
 
 /* ==========================================================
-   v4.39 · Modo actuación disponible para enlaces de invitado
+   v4.41 · Modo actuación invitado reconstruido
    ========================================================== */
-(function vmGuestPerformanceV439(){
- const params=new URLSearchParams(location.search);
- const token=String(params.get('guest')||'').trim();
- if(!token)return;
-
- async function ensureGuestSongs(performance){
-  const ids=[...new Set((performance?.songs||[]).map(String).filter(Boolean))];
-  const missing=ids.filter(id=>!state.songs.some(song=>String(song.id)===id));
-  if(!missing.length)return true;
-  try{
-   const config=window.VALDEMEDEL_CLOUD||{};
-   if(!config.url||!config.publishableKey)throw new Error('Configuración de Supabase incompleta');
-   const headers={apikey:config.publishableKey,Authorization:'Bearer '+config.publishableKey,'Cache-Control':'no-cache'};
-   // PostgREST admite el filtro in.(...), escapando cada identificador.
-   const encoded=missing.map(id=>'"'+String(id).replace(/"/g,'\\"')+'"').join(',');
-   const url=config.url.replace(/\/$/,'')+'/rest/v1/shared_songs?select=*&id=in.('+encodeURIComponent(encoded)+')';
-   const response=await fetch(url,{headers,cache:'no-store'});
-   if(!response.ok)throw new Error((await response.text())||('HTTP '+response.status));
-   const rows=await response.json();
-   for(const row of rows||[]){
-    const incoming=sharedSongFromRow(row);
-    const index=state.songs.findIndex(song=>String(song.id)===String(incoming.id));
-    if(index>=0)state.songs[index]=incoming;else state.songs.push(incoming);
-   }
-   localStorage.setItem(STORAGE.songs,JSON.stringify(state.songs));
-   return missing.every(id=>state.songs.some(song=>String(song.id)===id));
-  }catch(error){
-   console.error('No se pudieron cargar las canciones del invitado',error);
-   return false;
-  }
- }
-
- async function openGuestPerformance(){
-  const p=guestAccess.performance;
-  if(!p)return;
-  const button=document.getElementById('guestPerform');
-  if(button){button.disabled=true;button.textContent='Preparando…'}
-  const ready=await ensureGuestSongs(p);
-  if(!ready){
-   if(button){button.disabled=false;button.textContent='Modo actuación'}
-   alert('No se han podido cargar las letras de esta actuación. Comprueba la conexión y vuelve a intentarlo.');
-   return;
-  }
-  state.performances=[p];
-  state.rep=[...(p.songs||[])];
-  state.repAnnotations={...(p.annotations||{})};
-  state.current=state.rep.find(id=>state.songs.some(song=>String(song.id)===String(id)))||null;
-  if(!state.current){
-   if(button){button.disabled=false;button.textContent='Modo actuación'}
-   alert('Esta actuación no contiene canciones disponibles.');
-   return;
-  }
-  state.performanceMode=true;
-  guestAccess.mode='performance';
-  render();
- }
-
- const previousRenderGuestAccess=renderGuestAccess;
- renderGuestAccess=function(){
-  const result=previousRenderGuestAccess();
-  const button=document.getElementById('guestPerform');
-  if(button)button.onclick=openGuestPerformance;
-  return result;
- };
-
- // Si la pantalla ya estaba pintada antes de cargar este parche.
- document.addEventListener('click',event=>{
-  const target=event.target.closest?.('#guestPerform');
-  if(!target||!guestAccess.token)return;
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  openGuestPerformance();
- },true);
-})();
-
-
-/* ==========================================================
-   v4.40 · Reparación definitiva del modo actuación invitado
-   ========================================================== */
-(function vmGuestPerformanceV440(){
+(function vmGuestPerformanceV441(){
  const token=String(new URLSearchParams(location.search).get('guest')||'').trim();
  if(!token)return;
+ let opening=false;
 
- function normalizeGuestRepertoire(performance){
-  const ids=(performance?.songs||[]).map(id=>String(id));
-  state.rep=ids;
-  state.repAnnotations={...(performance?.annotations||{})};
-  state.performances=[performance];
-  return ids;
+ function mergeGuestSong(song){
+  if(!song||typeof song!=='object'||song.id==null)return;
+  const incoming=typeof sharedSongFromRow==='function'&&('song_data' in song||'data' in song)
+   ? sharedSongFromRow(song)
+   : song;
+  if(!incoming||incoming.id==null)return;
+  const index=state.songs.findIndex(item=>String(item.id)===String(incoming.id));
+  if(index>=0)state.songs[index]={...state.songs[index],...incoming};
+  else state.songs.push(incoming);
  }
 
- async function startGuestPerformanceV440(){
-  const p=guestAccess?.performance;
-  if(!p)return;
-  const button=document.getElementById('guestPerform');
-  if(button){button.disabled=true;button.textContent='Preparando…'}
+ async function downloadSharedSongs(){
+  const config=window.VALDEMEDEL_CLOUD||{};
+  if(!config.url||!config.publishableKey)return;
+  const base=config.url.replace(/\/$/,'');
+  const response=await fetch(base+'/rest/v1/shared_songs?select=*',{
+   headers:{apikey:config.publishableKey,Authorization:'Bearer '+config.publishableKey,'Cache-Control':'no-cache'},
+   cache:'no-store'
+  });
+  if(!response.ok)throw new Error((await response.text())||('HTTP '+response.status));
+  const rows=await response.json();
+  (rows||[]).forEach(mergeGuestSong);
+  localStorage.setItem(STORAGE.songs,JSON.stringify(state.songs));
+ }
+
+ function songIdFromEntry(entry){
+  if(entry&&typeof entry==='object'){
+   mergeGuestSong(entry);
+   return entry.id!=null?String(entry.id):'';
+  }
+  return entry==null?'':String(entry);
+ }
+
+ async function startGuestPerformance(){
+  if(opening)return;
+  const performance=guestAccess?.performance;
+  if(!performance)return;
+  opening=true;
+  const buttons=[...document.querySelectorAll('#guestPerform')];
+  buttons.forEach(btn=>{btn.disabled=true;btn.textContent='Preparando…'});
   try{
-   if(typeof ensureGuestSongs==='function')await ensureGuestSongs(p);
-   const ids=normalizeGuestRepertoire(p);
-   const first=ids.find(id=>state.songs.some(song=>String(song.id)===id));
-   if(!first)throw new Error('No hay letras disponibles para esta actuación');
-   state.current=String(first);
+   // Descarga la biblioteca compartida antes de resolver el repertorio.
+   // Si falla, seguimos con las canciones ya disponibles en el dispositivo.
+   try{await downloadSharedSongs()}catch(error){console.warn('Biblioteca invitada no descargada',error)}
+
+   const ids=(performance.songs||[]).map(songIdFromEntry).filter(Boolean);
+   const available=ids.filter(id=>state.songs.some(song=>String(song.id)===id));
+   if(!available.length)throw new Error('No hay letras disponibles para esta actuación');
+
+   state.performances=[performance];
+   state.rep=available;
+   state.repAnnotations={...(performance.annotations||{})};
+   state.current=available[0];
    state.performanceMode=true;
    guestAccess.mode='performance';
    document.body.classList.add('guest-access-mode');
@@ -1157,25 +1113,26 @@ window.addEventListener('beforeunload',()=>{
    document.body.classList.remove('auth-locked');
    render();
   }catch(error){
-   console.error('Modo actuación invitado v4.40',error);
-   if(button){button.disabled=false;button.textContent='Modo actuación'}
-   alert('No se ha podido abrir el modo actuación. Pulsa Actualizar y vuelve a intentarlo.');
-  }
+   console.error('Modo actuación invitado v4.41',error);
+   buttons.forEach(btn=>{btn.disabled=false;btn.textContent='Modo actuación'});
+   alert('No se ha podido abrir el modo actuación porque no se encontraron las letras de esta actuación. Pulsa Actualizar y vuelve a intentarlo.');
+  }finally{opening=false}
  }
 
- document.addEventListener('click',event=>{
-  const target=event.target.closest?.('#guestPerform');
-  if(!target)return;
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  startGuestPerformanceV440();
- },true);
-
- const oldRenderGuest=renderGuestAccess;
+ // Reasigna el botón cada vez que se dibuja cualquiera de las dos pantallas invitadas.
+ const previousRenderGuestAccess=renderGuestAccess;
  renderGuestAccess=function(){
-  const out=oldRenderGuest();
-  const btn=document.getElementById('guestPerform');
-  if(btn)btn.onclick=startGuestPerformanceV440;
-  return out;
+  const output=previousRenderGuestAccess();
+  document.querySelectorAll('#guestPerform').forEach(button=>button.onclick=startGuestPerformance);
+  return output;
  };
+
+ // Delegación en bubble: evita interferir con otros controles y sirve en botones ya dibujados.
+ document.addEventListener('click',event=>{
+  const button=event.target.closest?.('#guestPerform');
+  if(!button||!guestAccess?.token)return;
+  event.preventDefault();
+  event.stopPropagation();
+  startGuestPerformance();
+ });
 })();
