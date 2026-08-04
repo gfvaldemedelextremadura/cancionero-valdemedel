@@ -882,7 +882,7 @@ const refreshCloudPerformancesV429=refreshCloudPerformances;refreshCloudPerforma
    v4.32 · Acceso obligatorio con excepción segura para invitados. Sin sesión aprobada no se
    renderiza ni se muestra ninguna sección de la aplicación.
    ========================================================== */
-const VM_AUTH_GATE_VERSION='4.49';
+const VM_AUTH_GATE_VERSION='4.50';
 function vmGateEl(id){return document.getElementById(id)}
 function vmGateSetScreen(screen,message=''){
  const gate=vmGateEl('authGate'); if(!gate)return;
@@ -972,7 +972,7 @@ function vmBindAuthGate(){
  const login=vmGateEl('authGateLogin'),reg=vmGateEl('authGateRegister'); if(!login||login.dataset.bound)return; login.dataset.bound='1';
  vmGateEl('authShowRegister').onclick=()=>vmGateSetScreen('register','Crea tu cuenta. El administrador deberá aprobarla antes de que puedas entrar.');
  vmGateEl('authShowLogin').onclick=()=>vmGateSetScreen('login','Inicia sesión para acceder al Cancionero Valdemedel.');
- login.onsubmit=async e=>{e.preventDefault();const err=vmGateEl('authGateError'),btn=login.querySelector('button[type="submit"]');err.hidden=true;btn.disabled=true;btn.textContent='Entrando…';try{if(!cloudClient)await initCloud();if(!cloudClient)throw new Error('No se ha podido conectar con Supabase.');await loginMemberWithPassword(vmGateEl('authGateEmail').value,vmGateEl('authGatePassword').value);if(vmGateProfileApproved())vmUnlockApp();else vmShowPendingGate()}catch(ex){let m=ex?.message||'No se pudo iniciar sesión.';if(/invalid login credentials/i.test(m))m='Correo o contraseña incorrectos.';err.textContent=m;err.hidden=false}finally{btn.disabled=false;btn.textContent='Entrar'}};
+ login.onsubmit=async e=>{e.preventDefault();const err=vmGateEl('authGateError'),btn=login.querySelector('button[type="submit"]');err.hidden=true;btn.disabled=true;btn.textContent='Entrando…';try{if(!cloudClient)await initCloud();if(!cloudClient)throw new Error('No se ha podido conectar con Supabase.');await vmPromiseTimeout(loginMemberWithPassword(vmGateEl('authGateEmail').value,vmGateEl('authGatePassword').value),12000,'No se ha podido completar el acceso.');if(vmGateProfileApproved())vmUnlockApp();else vmShowPendingGate()}catch(ex){let m=ex?.message||'No se pudo iniciar sesión.';if(/invalid login credentials/i.test(m))m='Correo o contraseña incorrectos.';err.textContent=m;err.hidden=false}finally{btn.disabled=false;btn.textContent='Entrar'}};
  reg.onsubmit=async e=>{e.preventDefault();const err=vmGateEl('authRegError'),btn=reg.querySelector('button[type="submit"]');err.hidden=true;btn.disabled=true;btn.textContent='Enviando…';try{if(!cloudClient)await initCloud();if(!cloudClient)throw new Error('No se ha podido conectar con Supabase.');const data=await registerMemberPassword(vmGateEl('authRegEmail').value,vmGateEl('authRegPassword').value,vmGateEl('authRegPassword2').value,vmGateEl('authRegName').value);if(data?.session){await syncMemberSession(data.session);vmShowPendingGate()}else{vmGateSetScreen('login','Cuenta creada. Confirma el correo si Supabase te ha enviado un mensaje y después inicia sesión.')}}catch(ex){let m=ex?.message||'No se pudo crear la cuenta.';if(/user already registered/i.test(m))m='Ese correo ya está registrado. Inicia sesión.';err.textContent=m;err.hidden=false}finally{btn.disabled=false;btn.textContent='Enviar solicitud'}};
 }
 async function vmAuthGateBoot(){
@@ -1359,7 +1359,7 @@ window.addEventListener('beforeunload',()=>{
 })();
 
 /* ==========================================================
-   v4.49 · Letras completas en modo actuación de invitados con la misma estructura
+   v4.50 · Letras completas en modo actuación de invitados con la misma estructura
    que el modo normal: ajuste automático, una/dos columnas,
    zoom y desplazamiento táctil completo.
    ========================================================== */
@@ -1394,7 +1394,7 @@ window.addEventListener('beforeunload',()=>{
   try{const local=JSON.parse(localStorage.getItem('vm2_songs')||'[]');if(Array.isArray(local))local.forEach(add)}catch{}
   try{(Array.isArray(state?.songs)?state.songs:[]).forEach(add)}catch{}
   (p.songs||[]).forEach(e=>{const f=fullEntry(e);if(f)add(f)});
-  try{const rows=await rest('shared_songs?select=*');(rows||[]).map(rowSong).filter(Boolean).forEach(add)}catch(e){console.warn('v4.49 shared_songs',e)}
+  try{const rows=await rest('shared_songs?select=*');(rows||[]).map(rowSong).filter(Boolean).forEach(add)}catch(e){console.warn('v4.50 shared_songs',e)}
   return (p.songs||[]).map((e,i)=>{
    const embedded=fullEntry(e);if(embedded&&String(embedded.lyrics||embedded.inlineContent||'').trim())return embedded;
    const id=entryId(e);
@@ -1454,7 +1454,7 @@ window.addEventListener('beforeunload',()=>{
   requestAnimationFrame(()=>requestAnimationFrame(fit));
  }
  function close(){active=false;overlay?.remove();overlay=null;document.body.classList.remove('vm446-guest-performing');if(window.guestAccess){guestAccess.mode='landing';try{renderGuestAccess()}catch{location.href=location.pathname+'?guest='+encodeURIComponent(guestToken)}}}
- async function open(){if(busy||active)return;busy=true;const loader=document.createElement('div');loader.className='vm-gp-loader';loader.textContent='Preparando modo actuación…';document.body.append(loader);try{performance=await loadPerformance();songs=await loadSongs(performance);if(!songs.length)throw new Error('Esta actuación no tiene canciones');songIndex=0;manualDelta=0;overlay=document.createElement('div');overlay.className='vm446-guest-performance';document.body.append(overlay);document.body.classList.add('vm446-guest-performing','guest-access-mode');active=true;if(window.guestAccess)guestAccess.mode='standalone-performance-v446';renderSong()}catch(e){console.error('Modo invitado v4.49',e);alert('No se ha podido preparar el modo actuación: '+(e?.message||'error desconocido'))}finally{loader.remove();busy=false}}
+ async function open(){if(busy||active)return;busy=true;const loader=document.createElement('div');loader.className='vm-gp-loader';loader.textContent='Preparando modo actuación…';document.body.append(loader);try{performance=await loadPerformance();songs=await loadSongs(performance);if(!songs.length)throw new Error('Esta actuación no tiene canciones');songIndex=0;manualDelta=0;overlay=document.createElement('div');overlay.className='vm446-guest-performance';document.body.append(overlay);document.body.classList.add('vm446-guest-performing','guest-access-mode');active=true;if(window.guestAccess)guestAccess.mode='standalone-performance-v446';renderSong()}catch(e){console.error('Modo invitado v4.50',e);alert('No se ha podido preparar el modo actuación: '+(e?.message||'error desconocido'))}finally{loader.remove();busy=false}}
  window.addEventListener('click',e=>{const b=e.target.closest?.('#guestPerform');if(!b)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();open()},{capture:true});
  window.addEventListener('resize',()=>{if(!active)return;clearTimeout(resizeTimer);resizeTimer=setTimeout(renderSong,120)});
  window.addEventListener('popstate',()=>{if(active)close()});
