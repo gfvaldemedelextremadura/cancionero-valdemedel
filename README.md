@@ -1,3 +1,7 @@
+# Cancionero Valdemedel v4.44
+
+Actualización: afinador cromático integrado dentro del modo actuación normal y del modo actuación para invitados.
+
 # Cancionero Valdemedel v4.40
 
 Corrección del acceso mediante enlace de invitado. El enlace abre directamente la actuación sin registro ni inicio de sesión y consulta Supabase mediante lectura pública independiente del sistema de autenticación.
