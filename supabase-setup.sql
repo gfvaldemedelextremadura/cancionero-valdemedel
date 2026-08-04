@@ -459,3 +459,29 @@ create unique index if not exists performances_guest_token_unique on public.perf
 -- La lectura pública existente permite abrir una actuación mediante su token.
 -- La aplicación solo muestra la actuación vinculada al enlace invitado.
 notify pgrst, 'reload schema';
+
+-- ==========================================================
+-- v4.29 · Canciones creadas desde la app, compartidas
+-- ==========================================================
+create table if not exists public.shared_songs (
+  id text primary key,
+  title text not null,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table public.shared_songs enable row level security;
+grant select on public.shared_songs to anon, authenticated;
+grant insert, update, delete on public.shared_songs to authenticated;
+drop policy if exists "Canciones compartidas visibles" on public.shared_songs;
+drop policy if exists "Direccion crea canciones compartidas" on public.shared_songs;
+drop policy if exists "Direccion modifica canciones compartidas" on public.shared_songs;
+drop policy if exists "Direccion elimina canciones compartidas" on public.shared_songs;
+create policy "Canciones compartidas visibles" on public.shared_songs for select to anon, authenticated using (true);
+create policy "Direccion crea canciones compartidas" on public.shared_songs for insert to authenticated
+with check (exists(select 1 from public.member_profiles p where p.user_id=auth.uid() and p.approval_status='approved' and p.active=true and p.role in ('admin_total','dance_director','director')));
+create policy "Direccion modifica canciones compartidas" on public.shared_songs for update to authenticated
+using (exists(select 1 from public.member_profiles p where p.user_id=auth.uid() and p.approval_status='approved' and p.active=true and p.role in ('admin_total','dance_director','director')))
+with check (exists(select 1 from public.member_profiles p where p.user_id=auth.uid() and p.approval_status='approved' and p.active=true and p.role in ('admin_total','dance_director','director')));
+create policy "Direccion elimina canciones compartidas" on public.shared_songs for delete to authenticated
+using (exists(select 1 from public.member_profiles p where p.user_id=auth.uid() and p.approval_status='approved' and p.active=true and p.role in ('admin_total','dance_director','director')));
+notify pgrst, 'reload schema';
