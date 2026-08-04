@@ -1,3 +1,11 @@
+# Cancionero Valdemedel v4.36
+
+Corrección del estado de nuevas solicitudes de usuario.
+
+- Una cuenta recién registrada aparece como **Solicitud pendiente de aprobación**.
+- Solo una cuenta expresamente rechazada, o una cuenta ya aprobada que después haya sido desactivada, aparece como **Acceso no autorizado**.
+- No requiere cambios SQL.
+
 # Cancionero Valdemedel v4.9
 
 Aplicación web/PWA del Grupo Folklórico Valdemedel.

@@ -810,7 +810,7 @@ function vmShowPendingGate(){
  const p=memberState.profile||{};
  vmGateSetScreen('pending','Tu cuenta está registrada, pero todavía no tiene acceso a la aplicación.');
  const box=vmGateEl('authGatePending');
- const rejected=p.approval_status==='rejected'||p.active===false;
+ const rejected=p.approval_status==='rejected'||(p.approval_status==='approved'&&p.active===false);
  box.innerHTML=`<strong>${rejected?'Acceso no autorizado':'Solicitud pendiente de aprobación'}</strong><span>${esc(p.full_name||memberState.session?.user?.email||'')}</span><p>${rejected?'El administrador ha rechazado o desactivado esta cuenta.':'El administrador debe aceptar tu solicitud y asignarte un rol. Vuelve a comprobarlo más tarde.'}</p><button class="btn auth-primary" id="authGateCheck">Comprobar de nuevo</button><button class="btn secondary" id="authGateLogout">Cerrar sesión</button>`;
  vmGateEl('authGateCheck').onclick=vmAuthGateCheck;
  vmGateEl('authGateLogout').onclick=async()=>{try{await cloudClient?.auth?.signOut()}catch{} memberState.session=null;memberState.profile=null;vmGateSetScreen('login','Inicia sesión para acceder al Cancionero Valdemedel.')};
@@ -845,6 +845,7 @@ openAccount=function(){if(!memberState?.session?.user){vmGateSetScreen('login','
 requestAnimationFrame(vmAuthGateBoot);
 
 
+// v4.36 - solicitudes nuevas se muestran como pendientes; solo aprobados desactivados aparecen bloqueados
 // v4.35 - borradores y recuperacion automatica al editar canciones
 const SONG_DRAFT_PREFIX='vm_song_editor_draft_v435_';
 function songDraftKey(id){return SONG_DRAFT_PREFIX+String(id||window.__vmEditingSongId||'new')}
