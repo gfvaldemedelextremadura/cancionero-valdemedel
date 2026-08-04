@@ -1,5 +1,5 @@
-const C='valdemedel-v4.38';
-const PDF_CACHE='valdemedel-v4.38-pdfs';
+const C='valdemedel-v4.39';
+const PDF_CACHE='valdemedel-v4.39-pdfs';
 const A=['./','./index.html','./styles.css?v=4.37','./supabase-config.js?v=4.37','./supabase-lite.js?v=4.37','./app.js?v=4.37','./manifest.webmanifest','./logo-burdeos.png','./logo-blanco.png','./logo-texto.png','./actuacion-infantil.jpeg','./romeria.jpeg','./musicos-historicos.jpeg','./grupo.jpeg','./musicos-escenario.jpeg','./festival.jpeg','./tamborilero.jpeg','./baile.jpeg'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(A)))});
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([self.clients.claim(),caches.keys().then(k=>Promise.all(k.filter(x=>x!==C&&x!==PDF_CACHE).map(x=>caches.delete(x))))])));

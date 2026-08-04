@@ -1044,3 +1044,81 @@ window.addEventListener('beforeunload',()=>{
   }
  });
 })();
+
+/* ==========================================================
+   v4.39 · Modo actuación disponible para enlaces de invitado
+   ========================================================== */
+(function vmGuestPerformanceV439(){
+ const params=new URLSearchParams(location.search);
+ const token=String(params.get('guest')||'').trim();
+ if(!token)return;
+
+ async function ensureGuestSongs(performance){
+  const ids=[...new Set((performance?.songs||[]).map(String).filter(Boolean))];
+  const missing=ids.filter(id=>!state.songs.some(song=>String(song.id)===id));
+  if(!missing.length)return true;
+  try{
+   const config=window.VALDEMEDEL_CLOUD||{};
+   if(!config.url||!config.publishableKey)throw new Error('Configuración de Supabase incompleta');
+   const headers={apikey:config.publishableKey,Authorization:'Bearer '+config.publishableKey,'Cache-Control':'no-cache'};
+   // PostgREST admite el filtro in.(...), escapando cada identificador.
+   const encoded=missing.map(id=>'"'+String(id).replace(/"/g,'\\"')+'"').join(',');
+   const url=config.url.replace(/\/$/,'')+'/rest/v1/shared_songs?select=*&id=in.('+encodeURIComponent(encoded)+')';
+   const response=await fetch(url,{headers,cache:'no-store'});
+   if(!response.ok)throw new Error((await response.text())||('HTTP '+response.status));
+   const rows=await response.json();
+   for(const row of rows||[]){
+    const incoming=sharedSongFromRow(row);
+    const index=state.songs.findIndex(song=>String(song.id)===String(incoming.id));
+    if(index>=0)state.songs[index]=incoming;else state.songs.push(incoming);
+   }
+   localStorage.setItem(STORAGE.songs,JSON.stringify(state.songs));
+   return missing.every(id=>state.songs.some(song=>String(song.id)===id));
+  }catch(error){
+   console.error('No se pudieron cargar las canciones del invitado',error);
+   return false;
+  }
+ }
+
+ async function openGuestPerformance(){
+  const p=guestAccess.performance;
+  if(!p)return;
+  const button=document.getElementById('guestPerform');
+  if(button){button.disabled=true;button.textContent='Preparando…'}
+  const ready=await ensureGuestSongs(p);
+  if(!ready){
+   if(button){button.disabled=false;button.textContent='Modo actuación'}
+   alert('No se han podido cargar las letras de esta actuación. Comprueba la conexión y vuelve a intentarlo.');
+   return;
+  }
+  state.performances=[p];
+  state.rep=[...(p.songs||[])];
+  state.repAnnotations={...(p.annotations||{})};
+  state.current=state.rep.find(id=>state.songs.some(song=>String(song.id)===String(id)))||null;
+  if(!state.current){
+   if(button){button.disabled=false;button.textContent='Modo actuación'}
+   alert('Esta actuación no contiene canciones disponibles.');
+   return;
+  }
+  state.performanceMode=true;
+  guestAccess.mode='performance';
+  render();
+ }
+
+ const previousRenderGuestAccess=renderGuestAccess;
+ renderGuestAccess=function(){
+  const result=previousRenderGuestAccess();
+  const button=document.getElementById('guestPerform');
+  if(button)button.onclick=openGuestPerformance;
+  return result;
+ };
+
+ // Si la pantalla ya estaba pintada antes de cargar este parche.
+ document.addEventListener('click',event=>{
+  const target=event.target.closest?.('#guestPerform');
+  if(!target||!guestAccess.token)return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  openGuestPerformance();
+ },true);
+})();
