@@ -1216,3 +1216,94 @@ window.addEventListener('beforeunload',()=>{
  document.addEventListener('click',event=>{const b=event.target.closest?.('#guestPerform');if(!b)return;event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();open()},{capture:true});
  window.addEventListener('popstate',()=>{if(overlay)close()});
 })();
+
+/* ==========================================================
+   v4.45 · Modo actuación de invitados con la misma estructura
+   que el modo normal: ajuste automático, una/dos columnas,
+   zoom y desplazamiento táctil completo.
+   ========================================================== */
+(function vmGuestPerformanceParityV445(){
+ const guestToken=String(window.__VM_GUEST_TOKEN||new URLSearchParams(location.search).get('guest')||'').trim();
+ if(!guestToken)return;
+ let active=false,busy=false,overlay=null,performance=null,songs=[],songIndex=0,manualDelta=0,resizeTimer=null;
+ const cfg=window.VALDEMEDEL_CLOUD||{};
+ const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const sid=v=>String(v??'');
+ const entryId=e=>e&&typeof e==='object'?sid(e.id):sid(e);
+ const fullEntry=e=>e&&typeof e==='object'&&(e.lyrics||e.inlineContent||e.data)?(e.data&&typeof e.data==='object'?{...e.data,id:e.id||e.data.id}:e):null;
+ function rowSong(row){if(!row)return null;const data=row.data&&typeof row.data==='object'?row.data:(row.song_data&&typeof row.song_data==='object'?row.song_data:{});return {...data,id:sid(row.id||data.id),title:row.title||data.title||'Canción',updatedAt:row.updated_at||data.updatedAt||''}}
+ async function rest(path){
+  const base=String(cfg.url||'').replace(/\/$/,'');
+  if(!base||!cfg.publishableKey)throw new Error('Falta la configuración pública de Supabase');
+  const r=await fetch(base+'/rest/v1/'+path,{headers:{apikey:cfg.publishableKey,Authorization:'Bearer '+cfg.publishableKey,Accept:'application/json','Cache-Control':'no-cache'},cache:'no-store'});
+  if(!r.ok)throw new Error((await r.text())||('HTTP '+r.status));
+  return r.json();
+ }
+ async function loadPerformance(){
+  if(window.guestAccess?.performance&&sid(window.guestAccess.token)===guestToken)return window.guestAccess.performance;
+  const rows=await rest('performances?select=*&guest_token=eq.'+encodeURIComponent(guestToken)+'&limit=1');
+  if(!rows?.length)throw new Error('La invitación no existe o ya no está disponible');
+  return typeof performanceFromRow==='function'?performanceFromRow(rows[0]):rows[0];
+ }
+ async function loadSongs(p){
+  const map=new Map();
+  (Array.isArray(window.state?.songs)?window.state.songs:[]).forEach(s=>map.set(sid(s.id),s));
+  (p.songs||[]).forEach(e=>{const f=fullEntry(e);if(f)map.set(entryId(e),f)});
+  try{const rows=await rest('shared_songs?select=*');(rows||[]).map(rowSong).filter(Boolean).forEach(s=>map.set(sid(s.id),s))}catch(e){console.warn('v4.45 shared_songs',e)}
+  return (p.songs||[]).map((e,i)=>map.get(entryId(e))||fullEntry(e)||{id:entryId(e),title:(e&&typeof e==='object'&&(e.title||e.name))||`Canción ${i+1}`,lyrics:'Letra no disponible en este enlace.',chordMode:'none',sections:[]});
+ }
+ function chordsHtml(s){
+  if(s.chordMode==='general')return escapeHtml(s.generalChords||s.key||'');
+  if(s.chordMode==='sections'&&Array.isArray(s.sections))return s.sections.map(x=>`<b>${escapeHtml(x.name||'Parte')}:</b> ${escapeHtml(x.chords||'—')}`).join(' &nbsp; · &nbsp; ');
+  if(s.chordMode==='pending')return 'Acordes pendientes';
+  if(s.chordMode==='inline'&&s.key)return escapeHtml(s.key);
+  return '';
+ }
+ function formatted(text){
+  if(typeof formatLyricsHtml==='function')return formatLyricsHtml(text);
+  let h=escapeHtml(text||'Letra pendiente.');
+  return h.replace(/^\s*\[(H|M|T)\]\s*/gm,'<span class="voice-badge voice-$1">$1</span> ')
+   .replace(/\((?:bis)\)|\bBIS\b/gi,'<span class="bis-badge">BIS</span>');
+ }
+ function noteFor(s){return (performance?.annotations||{})[s.id]||(performance?.annotations||{})[sid(s.id)]||''}
+ function openModal(title,html){
+  const m=document.createElement('div');m.className='modal vm445-modal';m.innerHTML=`<div class="modal-card song-info-card"><div class="modal-head"><h2>${escapeHtml(title)}</h2><button class="close" data-vm445-close>×</button></div><div>${html}</div><div class="toolbar" style="margin-top:16px"><button class="btn" data-vm445-close>Cerrar</button></div></div>`;document.body.append(m);m.querySelectorAll('[data-vm445-close]').forEach(b=>b.onclick=()=>m.remove());m.onclick=e=>{if(e.target===m)m.remove()};
+ }
+ function showInfo(){const s=songs[songIndex]||{};const cs=Array.isArray(s.curiosities)?s.curiosities:String(s.curiosities||'').split(/\n+/).filter(Boolean);openModal('Información · '+(s.title||''),`${s.origin?`<p><b>Procedencia:</b> ${escapeHtml(s.origin)}</p>`:''}${s.history?`<h3>Historia</h3><p>${escapeHtml(s.history).replace(/\n/g,'<br>')}</p>`:''}${cs.length?`<h3>Curiosidades</h3><ul>${cs.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul>`:''}${s.infoSource?`<p><b>Fuente:</b> ${escapeHtml(s.infoSource)}</p>`:''}${!s.origin&&!s.history&&!cs.length&&!s.infoSource?'<p>Información pendiente de documentar.</p>':''}`)}
+ function showNote(){const s=songs[songIndex]||{},n=noteFor(s);openModal('Anotaciones · '+(s.title||''),n?`<p>${escapeHtml(n).replace(/\n/g,'<br>')}</p>`:'<p>No hay anotaciones para esta canción.</p>')}
+ function buildColumns(container,blocks,cols){
+  container.className='performance-columns cols-'+cols;container.innerHTML='';
+  const columns=[];for(let i=0;i<cols;i++){const c=document.createElement('div');c.className='performance-column';container.append(c);columns.push(c)}
+  if(cols===1){blocks.forEach(b=>{const d=document.createElement('div');d.className='performance-verse';d.innerHTML=formatted(b);columns[0].append(d)});return columns}
+  const weights=blocks.map(b=>b.split('\n').length+Math.ceil(b.length/55)*.45);let total=weights.reduce((a,b)=>a+b,0),acc=0,cut=1,best=Infinity;
+  for(let i=1;i<blocks.length;i++){acc+=weights[i-1];const score=Math.abs(total-2*acc);if(score<best){best=score;cut=i}}
+  blocks.forEach((b,i)=>{const d=document.createElement('div');d.className='performance-verse';d.innerHTML=formatted(b);columns[i<cut?0:1].append(d)});return columns;
+ }
+ function renderSong(){
+  if(!overlay)return;
+  const s=songs[songIndex]||{},text=String(s.chordMode==='inline'?(s.inlineContent||s.lyrics||''):(s.lyrics||s.inlineContent||'')).replace(/\r\n?/g,'\n').trim();
+  const blocks=text.split(/\n[ \t]*\n+/).map(x=>x.trim()).filter(Boolean);if(!blocks.length)blocks.push('Letra pendiente.');
+  const note=noteFor(s),info=typeof hasSongInfo==='function'?hasSongInfo(s):Boolean(s.history||s.origin||s.infoSource||s.curiosities);
+  overlay.innerHTML=`<section class="performance-screen vm445-performance-screen"><header class="performance-head"><div><h1>${escapeHtml(s.title||'Canción')}</h1><div class="performance-meta">${escapeHtml(s.category||'')}${s.key?' · '+escapeHtml(s.key):''}${note?' · <span class="annotation-indicator">Anotación disponible</span>':''}</div></div><div class="performance-actions"><button class="perf-btn info-perf ${info?'info-available':'info-pending'}" data-vm445-info>ⓘ <span>${info?'Info':'Sin info'}</span></button><button class="perf-btn font-control" data-vm445-smaller>A-</button><button class="perf-btn font-control" data-vm445-bigger>A+</button><button class="perf-btn annotation-perf ${note?'has-annotation':''}" data-vm445-note>📝 <span>Nota</span></button><button class="perf-btn tuner-perf" data-vm445-tuner>♬ <span>Afinador</span></button><button class="perf-btn close-perf" data-vm445-close>Cerrar</button></div></header><div class="performance-chords">${chordsHtml(s)}</div><div class="performance-lyrics" data-vm445-scroll><div class="performance-columns" data-vm445-columns></div></div><footer class="performance-nav"><button class="perf-nav" data-vm445-prev>← Anterior</button><span>${songIndex+1} / ${songs.length}</span><button class="perf-nav" data-vm445-next>Siguiente →</button><small class="performance-credit">Creada por Carmona para el Grupo Folklórico Valdemedel</small></footer></section>`;
+  const area=overlay.querySelector('[data-vm445-scroll]'),columns=overlay.querySelector('[data-vm445-columns]');
+  function fits(cols,size){columns.style.setProperty('--perf-size',size+'px');const cs=buildColumns(columns,blocks,cols);void columns.offsetHeight;return cs.every(c=>c.scrollHeight<=area.clientHeight+1&&c.scrollWidth<=c.clientWidth+1)}
+  function updateScroll(){void columns.offsetHeight;const cs=[...columns.querySelectorAll('.performance-column')];const overflow=cs.some(c=>c.scrollHeight>area.clientHeight+2||c.scrollWidth>c.clientWidth+2)||columns.scrollHeight>area.clientHeight+2||columns.scrollWidth>area.clientWidth+2;const scrollable=manualDelta>0||overflow;area.classList.toggle('is-scrollable',scrollable);columns.classList.toggle('is-zoomed',scrollable);area.setAttribute('aria-label',scrollable?'Letra completa. Desliza para subir, bajar o moverte por la canción.':'Letra de la canción');if(!scrollable)area.scrollTo({top:0,left:0})}
+  function fit(){
+   const oldY=Math.max(0,area.scrollHeight-area.clientHeight),oldX=Math.max(0,area.scrollWidth-area.clientWidth),ry=oldY?area.scrollTop/oldY:0,rx=oldX?area.scrollLeft/oldX:0;
+   const portrait=matchMedia('(orientation: portrait)').matches,narrow=innerWidth<700,min=narrow?11:12,max=narrow?30:(portrait?34:38),order=portrait?[1,2]:[2,1],candidates=[];
+   area.classList.remove('is-scrollable');columns.classList.remove('is-zoomed');area.scrollTo({top:0,left:0});
+   for(const cols of order){let lo=min,hi=narrow?22:(portrait?25:28);for(let i=0;i<15;i++){const mid=(lo+hi)/2;if(fits(cols,mid))lo=mid;else hi=mid}candidates.push({cols,size:lo})}
+   let winner=candidates[0];for(const c of candidates){const cb=(portrait&&c.cols===1?1.2:0)+(!portrait&&c.cols===2?.6:0),wb=(portrait&&winner.cols===1?1.2:0)+(!portrait&&winner.cols===2?.6:0);if(c.size+cb>winner.size+wb)winner=c}
+   columns.style.setProperty('--perf-size',Math.max(min,Math.min(max,winner.size+manualDelta))+'px');buildColumns(columns,blocks,winner.cols);updateScroll();
+   requestAnimationFrame(()=>{if(!area.classList.contains('is-scrollable'))return;area.scrollTop=Math.max(0,area.scrollHeight-area.clientHeight)*ry;area.scrollLeft=Math.max(0,area.scrollWidth-area.clientWidth)*rx});
+  }
+  let drag=null;area.addEventListener('pointerdown',e=>{if(!area.classList.contains('is-scrollable')||e.pointerType!=='mouse'||e.button!==0)return;drag={x:e.clientX,y:e.clientY,left:area.scrollLeft,top:area.scrollTop};area.classList.add('is-dragging');area.setPointerCapture(e.pointerId)});area.addEventListener('pointermove',e=>{if(!drag)return;area.scrollLeft=drag.left-(e.clientX-drag.x);area.scrollTop=drag.top-(e.clientY-drag.y)});const end=e=>{if(!drag)return;drag=null;area.classList.remove('is-dragging');try{area.releasePointerCapture(e.pointerId)}catch{}};area.addEventListener('pointerup',end);area.addEventListener('pointercancel',end);
+  overlay.querySelector('[data-vm445-info]').onclick=showInfo;overlay.querySelector('[data-vm445-note]').onclick=showNote;overlay.querySelector('[data-vm445-tuner]').onclick=()=>typeof openTuner==='function'&&openTuner();overlay.querySelector('[data-vm445-smaller]').onclick=()=>{manualDelta=Math.max(-8,manualDelta-1);fit()};overlay.querySelector('[data-vm445-bigger]').onclick=()=>{manualDelta=Math.min(14,manualDelta+1);fit()};overlay.querySelector('[data-vm445-prev]').onclick=()=>{songIndex=(songIndex-1+songs.length)%songs.length;manualDelta=0;renderSong()};overlay.querySelector('[data-vm445-next]').onclick=()=>{songIndex=(songIndex+1)%songs.length;manualDelta=0;renderSong()};overlay.querySelector('[data-vm445-close]').onclick=close;
+  requestAnimationFrame(()=>requestAnimationFrame(fit));
+ }
+ function close(){active=false;overlay?.remove();overlay=null;document.body.classList.remove('vm445-guest-performing');if(window.guestAccess){guestAccess.mode='landing';try{renderGuestAccess()}catch{location.href=location.pathname+'?guest='+encodeURIComponent(guestToken)}}}
+ async function open(){if(busy||active)return;busy=true;const loader=document.createElement('div');loader.className='vm-gp-loader';loader.textContent='Preparando modo actuación…';document.body.append(loader);try{performance=await loadPerformance();songs=await loadSongs(performance);if(!songs.length)throw new Error('Esta actuación no tiene canciones');songIndex=0;manualDelta=0;overlay=document.createElement('div');overlay.className='vm445-guest-performance';document.body.append(overlay);document.body.classList.add('vm445-guest-performing','guest-access-mode');active=true;if(window.guestAccess)guestAccess.mode='standalone-performance-v445';renderSong()}catch(e){console.error('Modo invitado v4.45',e);alert('No se ha podido preparar el modo actuación: '+(e?.message||'error desconocido'))}finally{loader.remove();busy=false}}
+ window.addEventListener('click',e=>{const b=e.target.closest?.('#guestPerform');if(!b)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();open()},{capture:true});
+ window.addEventListener('resize',()=>{if(!active)return;clearTimeout(resizeTimer);resizeTimer=setTimeout(renderSong,120)});
+ window.addEventListener('popstate',()=>{if(active)close()});
+})();
