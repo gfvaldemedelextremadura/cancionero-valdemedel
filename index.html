@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#7a1637"><title>Cancionero Valdemedel</title>
-<link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles.css?v=4.44">
+<link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles.css?v=4.49">
 <script>
 (function(){
   var token='';
@@ -48,4 +48,23 @@ if(window.__VM_GUEST_TOKEN){
   var g=document.getElementById('authGate'); if(g) g.hidden=true;
   var f=document.getElementById('guestBootFallback'); if(f) f.hidden=false;
 }
-</script><script src="supabase-config.js?v=4.44"></script><script src="supabase-lite.js?v=4.44"></script><script src="app.js?v=4.44"></script></body></html>
+</script>
+<script>
+(function(){
+  if(window.__VM_GUEST_TOKEN)return;
+  setTimeout(function(){
+    var gate=document.getElementById('authGate');
+    var loading=document.getElementById('authGateLoading');
+    var login=document.getElementById('authGateLogin');
+    var text=document.getElementById('authGateText');
+    if(gate && !gate.hidden && loading && !loading.hidden){
+      loading.hidden=true;
+      if(login)login.hidden=false;
+      if(text)text.textContent='La conexión está tardando. Inicia sesión para continuar.';
+      var error=document.getElementById('authGateError');
+      if(error){error.textContent='Si estás abriendo la app desde la pantalla de inicio, comprueba que el iPad tenga conexión a Internet.';error.hidden=false;}
+    }
+  },9000);
+})();
+</script>
+<script src="supabase-config.js?v=4.49"></script><script src="supabase-lite.js?v=4.49"></script><script src="app.js?v=4.49"></script></body></html>

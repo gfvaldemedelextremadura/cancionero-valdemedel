@@ -23,6 +23,21 @@
     try { return JSON.parse(text); } catch (_) { return text; }
   }
 
+  async function fetchWithTimeout(url, options, timeoutMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs || 9000);
+    try {
+      return await fetch(url, { ...(options || {}), signal: controller.signal });
+    } catch (error) {
+      if (error && error.name === 'AbortError') {
+        throw makeError('La conexión con Supabase está tardando demasiado.', 0, error);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   function createClient(projectUrl, publishableKey, options) {
     const baseUrl = String(projectUrl || '').replace(/\/+$/, '');
     const apiKey = String(publishableKey || '').trim();
@@ -77,12 +92,12 @@
       if (accessToken) headers.Authorization = 'Bearer ' + accessToken;
       let response;
       try {
-        response = await fetch(baseUrl + path, {
+        response = await fetchWithTimeout(baseUrl + path, {
           method: 'POST',
           headers,
           body: body === undefined ? undefined : JSON.stringify(body),
           cache: 'no-store'
-        });
+        }, 9000);
       } catch (error) {
         throw makeError('No se ha podido conectar con Supabase. Comprueba la conexión a Internet.', 0, error);
       }
@@ -129,12 +144,12 @@
       const url = baseUrl + '/rest/v1/' + encodeURIComponent(table) + (queryString ? '?' + queryString : '');
       let response;
       try {
-        response = await fetch(url, {
+        response = await fetchWithTimeout(url, {
           method,
           headers,
           body: body === undefined ? undefined : JSON.stringify(body),
           cache: 'no-store'
-        });
+        }, 9000);
       } catch (error) {
         throw makeError('No se ha podido conectar con la base de datos compartida.', 0, error);
       }
