@@ -539,3 +539,15 @@ body.vm445-guest-performing{overflow:hidden!important;padding:0!important;backgr
 .tuner-toolbar{justify-content:center;flex-wrap:wrap}
 .dark .tuner-mode-btn,.dark .tuner-string-btn{background:#171315}.dark .tuner-mode-btn.active{background:#a42d5a;border-color:#a42d5a}.dark .tuner-string-btn.active{background:#2a1a20}.dark .tuner-string-wire{background:linear-gradient(90deg,#6c5960 0%,#d0c7ca 100%)}
 @media(max-width:640px){.tuner-target-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tuner-string-line{grid-template-columns:36px 1fr 48px;gap:8px}.tuner-selected{font-size:.96rem}.tuner-string-btn{padding:10px 8px}}
+
+/* v4.53 · Estabilidad durante actuaciones */
+body.performance-stability-mode{
+  overscroll-behavior:none;
+  -webkit-user-select:none;
+  user-select:none;
+}
+body.performance-stability-mode .performance-lyrics,
+body.performance-stability-mode .vm449-guest-performance{
+  -webkit-user-select:text;
+  user-select:text;
+}
