@@ -559,3 +559,13 @@ body.performance-stability-mode .vm449-guest-performance{
 .performance-piece-explain{margin:-4px 0 18px;color:var(--muted);line-height:1.5}
 .repertoire-item:has([data-openrep^="piece-"]){border-style:dashed;background:linear-gradient(135deg,var(--surface,#fff),var(--surface-soft,#f8f4f6))}
 @media(max-width:640px){.repertoire-add-actions{width:100%;justify-content:flex-start}.performance-piece-card{max-height:92vh;overflow:auto}}
+
+
+/* v4.57 · Convertir encuesta en actuación */
+.poll-admin-actions{display:flex;justify-content:flex-end;align-items:center;gap:6px;flex-wrap:wrap}
+.poll-convert-btn{background:#7a1637;color:#fff;border-color:#7a1637}
+.poll-convert-btn:disabled{opacity:.48;cursor:not-allowed}
+.poll-converted-btn{background:#26714c;color:#fff;border-color:#26714c}
+.poll-converted-note{margin:10px 0;padding:10px 12px;border-radius:12px;background:#edf8f2;color:#1f6545;font-weight:700;font-size:.92rem}
+.dark .poll-converted-note{background:#173426;color:#b8ebd0}
+@media(max-width:700px){.poll-admin-actions{justify-content:flex-start;margin-top:8px}.poll-admin-actions .btn{flex:0 0 auto}}
