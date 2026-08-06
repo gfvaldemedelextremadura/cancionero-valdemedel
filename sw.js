@@ -1,6 +1,6 @@
-const C='valdemedel-v4.53';
-const PDF_CACHE='valdemedel-v4.53-pdfs';
-const A=['./','./index.html','./styles.css?v=4.53','./supabase-config.js?v=4.53','./supabase-lite.js?v=4.53','./app.js?v=4.53','./manifest.webmanifest','./logo-burdeos.png','./logo-blanco.png','./logo-texto.png','./actuacion-infantil.jpeg','./romeria.jpeg','./musicos-historicos.jpeg','./grupo.jpeg','./musicos-escenario.jpeg','./festival.jpeg','./tamborilero.jpeg','./baile.jpeg'];
+const C='valdemedel-v4.54';
+const PDF_CACHE='valdemedel-v4.54-pdfs';
+const A=['./','./index.html','./styles.css?v=4.54','./supabase-config.js?v=4.54','./supabase-lite.js?v=4.54','./app.js?v=4.54','./manifest.webmanifest','./logo-burdeos.png','./logo-blanco.png','./logo-texto.png','./actuacion-infantil.jpeg','./romeria.jpeg','./musicos-historicos.jpeg','./grupo.jpeg','./musicos-escenario.jpeg','./festival.jpeg','./tamborilero.jpeg','./baile.jpeg'];
 self.addEventListener('install',event=>{self.skipWaiting();event.waitUntil(caches.open(C).then(cache=>cache.addAll(A)))});
 self.addEventListener('activate',event=>event.waitUntil(Promise.all([
  self.clients.claim(),

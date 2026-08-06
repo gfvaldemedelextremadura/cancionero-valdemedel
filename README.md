@@ -1,4 +1,4 @@
-# Cancionero Valdemedel v4.53
+# Cancionero Valdemedel v4.54
 
 Actualización: afinador cromático integrado dentro del modo actuación normal y del modo actuación para invitados.
 
