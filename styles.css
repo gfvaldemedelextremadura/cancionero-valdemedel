@@ -569,3 +569,6 @@ body.performance-stability-mode .vm449-guest-performance{
 .poll-converted-note{margin:10px 0;padding:10px 12px;border-radius:12px;background:#edf8f2;color:#1f6545;font-weight:700;font-size:.92rem}
 .dark .poll-converted-note{background:#173426;color:#b8ebd0}
 @media(max-width:700px){.poll-admin-actions{justify-content:flex-start;margin-top:8px}.poll-admin-actions .btn{flex:0 0 auto}}
+
+/* v4.58 · El buscador mantiene el foco durante las sincronizaciones */
+body.search-typing .search-wrap{position:relative;z-index:20}
