@@ -551,3 +551,11 @@ body.performance-stability-mode .vm449-guest-performance{
   -webkit-user-select:text;
   user-select:text;
 }
+
+
+/* v4.56 · Piezas de actuación sin letra */
+.repertoire-add-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.performance-piece-card{max-width:680px}
+.performance-piece-explain{margin:-4px 0 18px;color:var(--muted);line-height:1.5}
+.repertoire-item:has([data-openrep^="piece-"]){border-style:dashed;background:linear-gradient(135deg,var(--surface,#fff),var(--surface-soft,#f8f4f6))}
+@media(max-width:640px){.repertoire-add-actions{width:100%;justify-content:flex-start}.performance-piece-card{max-height:92vh;overflow:auto}}
