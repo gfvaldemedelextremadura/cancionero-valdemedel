@@ -20,6 +20,14 @@ const VERDIGAIO_COLUMNS_FIX_KEY='vm_fix_verdigaio_columns_v454';
 
 let vmPerformanceWakeLock=null;
 let vmPerformanceHeartbeat=null;
+// v4.61: si se sale del modo actuación sin pulsar «Cerrar» (navegación, canción inexistente),
+// se limpia la marca y se libera el bloqueo de pantalla para que la sincronización se reanude.
+function vmClearStalePerformanceMode(){
+ if(state.performanceMode&&state.current)return;
+ if(!document.body.classList.contains('performing'))return;
+ document.body.classList.remove('performing');
+ vmReleasePerformanceWakeLock();
+}
 function vmIsPerformanceActive(){
  return Boolean(state.performanceMode||window.__VM_PERFORMANCE_ACTIVE||document.body.classList.contains('performing')||document.body.classList.contains('vm449-guest-performing')||document.body.classList.contains('vm445-guest-performing'));
 }
@@ -598,6 +606,7 @@ function vmRenderAfterSearch(){
 }
 function render(){
  if(vmSearchIsBeingEdited()){vmRenderAfterSearch();return}
+ vmClearStalePerformanceMode();
  document.querySelectorAll('.bottom-nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===state.view));
  if(state.performanceMode&&state.current)return renderPerformanceMode();
  if(state.current)return renderSong();
@@ -1113,7 +1122,7 @@ function openNoticeEditor(){openModal(`<div class="modal-card management-modal">
 async function saveGroupNotice(){if(!requireAdmin())return;const row={id:'notice-'+Date.now(),title:$('#gnTitle').value.trim(),body:$('#gnBody').value.trim(),important:$('#gnImportant').checked,created_at:new Date().toISOString(),updated_at:new Date().toISOString()};if(!row.title||!row.body)return alert('Completa el título y el mensaje.');try{const {data,error}=await cloudClient.from('group_notices').upsert(row,{onConflict:'id'}).select('*').single();if(error)throw error;groupState.notices=[data,...groupState.notices];closeModal();groupState.tab='notices';toast('Aviso publicado');renderManagement()}catch(e){alert('No se pudo publicar el aviso: '+(e?.message||'error desconocido'))}}
 async function deleteGroupNotice(id){if(!requireAdmin()||!confirm('¿Eliminar este aviso?'))return;const {error}=await cloudClient.from('group_notices').delete().eq('id',id);if(error)return alert(error.message);groupState.notices=groupState.notices.filter(n=>n.id!==id);renderManagement()}
 const originalRenderV419=render;
-render=function(){if(state.view==='management')return renderManagement();return originalRenderV419()};
+render=function(){if(state.view==='management'){vmClearStalePerformanceMode();return renderManagement()}return originalRenderV419()};
 const originalNavV419=nav;
 nav=function(v){originalNavV419(v);if(v==='management')loadGroupData({silent:true})};
 setInterval(()=>{if(!vmIsPerformanceActive()&&state.view==='management'&&document.visibilityState==='visible'&&navigator.onLine)loadGroupData({silent:true})},60000);
@@ -1241,10 +1250,10 @@ function renderGuestAccess(){
  if(guestAccess.mode==='repertoire'){
   const rows=(p.songs||[]).map((id,i)=>{const song=state.songs.find(s=>String(s.id)===String(id));const title=song?.title||song?.name||`Canción ${i+1}`;const note=(p.annotations||{})[id]||'';return `<li class="guest-song-row"><span class="guest-song-number">${i+1}</span><div><strong>${esc(title)}</strong>${note?`<p>📝 ${esc(note)}</p>`:''}</div></li>`}).join('');
   app.innerHTML=`<div class="guest-page"><div class="guest-card guest-repertoire-card"><div class="modal-head"><div><span class="eyebrow dark-eyebrow">Repertorio invitado</span><h1>${esc(p.name)}</h1></div><button class="icon-btn" id="guestBack">×</button></div><p class="guest-meta">${esc(p.date||'')}${p.place?' · '+esc(p.place):''}</p><ol class="guest-song-list">${rows||'<li>No hay canciones.</li>'}</ol><div class="toolbar"><button class="btn" id="guestPerform">Modo actuación</button><button class="btn secondary" id="guestBack2">Volver</button></div><p class="guest-note">Acceso limitado únicamente a esta actuación.</p></div></div>`;
-  const back=()=>{guestAccess.mode='landing';render()};$('#guestBack').onclick=back;$('#guestBack2').onclick=back;$('#guestPerform').onclick=()=>{state.performances=[p];state.rep=[...(p.songs||[])];state.repAnnotations={...(p.annotations||{})};state.current=state.rep[0];state.performanceMode=true;guestAccess.mode='performance';render()};return;
+  const back=()=>{guestAccess.mode='landing';render()};$('#guestBack').onclick=back;$('#guestBack2').onclick=back;;return;
  }
  app.innerHTML=`<div class="guest-page"><div class="guest-card"><img src="logo-burdeos.png" alt="Valdemedel"><span class="eyebrow dark-eyebrow">Invitación</span><h1>${esc(p.name)}</h1><p class="guest-meta">${esc(p.date||'')}${p.place?' · '+esc(p.place):''}</p><div class="guest-stats"><span>${(p.songs||[]).length} canciones</span><span>${participants.length} participantes</span></div><div class="toolbar"><button class="btn" id="guestOpenRep">Ver repertorio</button><button class="btn secondary" id="guestPerform">Modo actuación</button>${p.dancePdfUrl?`<a class="btn secondary" href="${esc(p.dancePdfUrl)}" target="_blank" rel="noopener">PDF bailarines</a>`:''}</div>${participants.length?`<section class="guest-participants"><h2>Participantes</h2><ol>${participants.map(x=>`<li>${esc(x)}</li>`).join('')}</ol></section>`:''}<p class="guest-note">Este enlace da acceso únicamente a esta actuación. No requiere registro ni inicio de sesión.</p></div></div>`;
- $('#guestOpenRep').onclick=()=>{guestAccess.mode='repertoire';render()};$('#guestPerform').onclick=()=>{state.performances=[p];state.rep=[...(p.songs||[])];state.repAnnotations={...(p.annotations||{})};state.current=state.rep[0];state.performanceMode=true;guestAccess.mode='performance';render()}
+ $('#guestOpenRep').onclick=()=>{guestAccess.mode='repertoire';render()};
 }
 const renderV424=render;render=function(){if(guestAccess.token){if(guestAccess.mode==='performance'&&state.performanceMode){document.body.classList.add('guest-access-mode');const gate=document.getElementById('authGate');if(gate)gate.hidden=true;document.body.classList.remove('auth-locked');return renderV424()}if(guestAccess.mode==='performance'&&!state.performanceMode)guestAccess.mode='landing';return renderGuestAccess()}return renderV424()};
 const initCloudV424=initCloud;initCloud=async function(){await initCloudV424();if(guestAccess.token)loadGuestPerformance()};
@@ -1294,7 +1303,7 @@ const refreshCloudPerformancesV429=refreshCloudPerformances;refreshCloudPerforma
    v4.32 · Acceso obligatorio con excepción segura para invitados. Sin sesión aprobada no se
    renderiza ni se muestra ninguna sección de la aplicación.
    ========================================================== */
-const VM_AUTH_GATE_VERSION='4.60';
+const VM_AUTH_GATE_VERSION='4.61';
 function vmGateEl(id){return document.getElementById(id)}
 function vmGateSetScreen(screen,message=''){
  const gate=vmGateEl('authGate'); if(!gate)return;
@@ -1677,22 +1686,7 @@ window.addEventListener('beforeunload',()=>{
   }finally{opening=false}
  }
 
- // Reasigna el botón cada vez que se dibuja cualquiera de las dos pantallas invitadas.
- const previousRenderGuestAccess=renderGuestAccess;
- renderGuestAccess=function(){
-  const output=previousRenderGuestAccess();
-  document.querySelectorAll('#guestPerform').forEach(button=>button.onclick=startGuestPerformance);
-  return output;
- };
-
- // Delegación en bubble: evita interferir con otros controles y sirve en botones ya dibujados.
- document.addEventListener('click',event=>{
-  const button=event.target.closest?.('#guestPerform');
-  if(!button||!guestAccess?.token)return;
-  event.preventDefault();
-  event.stopPropagation();
-  startGuestPerformance();
- });
+ // v4.61: este módulo ya no controla #guestPerform; el único controlador está en el módulo v4.58.
 })();
 
 /* v4.42: arranque invitado previo a Auth, estable tambien en navegacion privada. */
@@ -1765,8 +1759,6 @@ window.addEventListener('beforeunload',()=>{
   if(busy||overlay)return;busy=true;const loader=document.createElement('div');loader.className='vm-gp-loader';loader.textContent='Preparando letras y acordes…';document.body.append(loader);
   try{performance=await getPerformance();songs=await getSongs(performance);if(!songs.length)throw new Error('Esta actuación no tiene canciones');index=0;fontSize=window.innerWidth<620?17:19;overlay=document.createElement('section');overlay.className='vm-guest-performance';overlay.setAttribute('role','dialog');overlay.setAttribute('aria-label','Modo actuación de invitado');document.body.append(overlay);document.body.classList.add('vm-guest-performing','guest-access-mode');guestAccess.mode='standalone-performance';renderSong()}catch(error){console.error('Modo actuación invitado v4.44',error);alert('No se ha podido preparar el modo actuación: '+(error?.message||'error desconocido'))}finally{loader.remove();busy=false}
  }
- // Captura temprana: anula todos los controladores antiguos de #guestPerform.
- document.addEventListener('click',event=>{const b=event.target.closest?.('#guestPerformLegacyDisabled');if(!b)return;open()},{capture:true});
  window.addEventListener('popstate',()=>{if(overlay)close()});
 })();
 
@@ -1867,7 +1859,8 @@ window.addEventListener('beforeunload',()=>{
  }
  function close(){active=false;overlay?.remove();overlay=null;document.body.classList.remove('vm446-guest-performing');vmReleasePerformanceWakeLock();if(window.guestAccess){guestAccess.mode='landing';try{renderGuestAccess()}catch{location.href=location.pathname+'?guest='+encodeURIComponent(guestToken)}}}
  async function open(){if(busy||active)return;busy=true;const loader=document.createElement('div');loader.className='vm-gp-loader';loader.textContent='Preparando modo actuación…';document.body.append(loader);try{performance=await loadPerformance();songs=await loadSongs(performance);if(!songs.length)throw new Error('Esta actuación no tiene canciones');songIndex=0;manualDelta=0;overlay=document.createElement('div');overlay.className='vm446-guest-performance';document.body.append(overlay);document.body.classList.add('vm446-guest-performing','guest-access-mode');vmAcquirePerformanceWakeLock();active=true;if(window.guestAccess)guestAccess.mode='standalone-performance-v446';renderSong()}catch(e){console.error('Modo invitado v4.58',e);alert('No se ha podido preparar el modo actuación: '+(e?.message||'error desconocido'))}finally{loader.remove();busy=false}}
- window.addEventListener('click',e=>{const b=e.target.closest?.('#guestPerform');if(!b)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();open()},{capture:true});
+ // v4.61: único controlador del botón «Modo actuación» de invitado.
+ document.addEventListener('click',e=>{const b=e.target.closest?.('#guestPerform');if(!b)return;e.preventDefault();open()});
  window.addEventListener('resize',()=>{if(!active)return;clearTimeout(resizeTimer);resizeTimer=setTimeout(renderSong,120)});
  window.addEventListener('popstate',()=>{if(active)close()});
 })();

@@ -327,7 +327,8 @@
         on(event, filter, handler) { callback = handler; return api; },
         subscribe(statusCallback) {
           const notify = () => { if (callback) callback({ eventType: 'POLL' }); };
-          timer = setInterval(notify, 5000);
+          // v4.61: cada 60 s (antes 5 s) para ahorrar batería, datos y repintados.
+          timer = setInterval(notify, 60000);
           visibilityHandler = () => { if (document.visibilityState === 'visible') notify(); };
           onlineHandler = notify;
           document.addEventListener('visibilitychange', visibilityHandler);

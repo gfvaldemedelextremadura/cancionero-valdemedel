@@ -1,10 +1,17 @@
-const C='valdemedel-v4.60';
-const PDF_CACHE='valdemedel-v4.60-pdfs';
-const A=['./','./index.html','./styles.css?v=4.60','./supabase-config.js?v=4.60','./supabase-lite.js?v=4.60','./app.js?v=4.60','./manifest.webmanifest','./logo-burdeos.png','./logo-blanco.png','./logo-texto.png','./actuacion-infantil.jpeg','./romeria.jpeg','./musicos-historicos.jpeg','./grupo.jpeg','./musicos-escenario.jpeg','./festival.jpeg','./tamborilero.jpeg','./baile.jpeg'];
+const C='valdemedel-v4.61';
+// v4.61: nombre fijo para no perder los PDF guardados sin conexión al actualizar.
+const PDF_CACHE='valdemedel-pdfs';
+const A=['./','./index.html','./styles.css?v=4.61','./supabase-config.js?v=4.61','./supabase-lite.js?v=4.61','./app.js?v=4.61','./manifest.webmanifest','./logo-burdeos.png','./logo-blanco.png','./logo-texto.png','./actuacion-infantil.jpeg','./romeria.jpeg','./musicos-historicos.jpeg','./grupo.jpeg','./musicos-escenario.jpeg','./festival.jpeg','./tamborilero.jpeg','./baile.jpeg'];
 self.addEventListener('install',event=>{self.skipWaiting();event.waitUntil(caches.open(C).then(cache=>cache.addAll(A)))});
+async function movePdfCaches(keys){
+ const target=await caches.open(PDF_CACHE);
+ for(const key of keys.filter(k=>k!==PDF_CACHE&&k.endsWith('-pdfs'))){
+  try{const old=await caches.open(key);for(const req of await old.keys()){const res=await old.match(req);if(res&&!(await target.match(req)))await target.put(req,res)}}catch(e){}
+ }
+}
 self.addEventListener('activate',event=>event.waitUntil(Promise.all([
  self.clients.claim(),
- caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==C&&key!==PDF_CACHE).map(key=>caches.delete(key))))
+ caches.keys().then(async keys=>{await movePdfCaches(keys);return Promise.all(keys.filter(key=>key!==C&&key!==PDF_CACHE).map(key=>caches.delete(key)))})
 ])));
 self.addEventListener('fetch',event=>{
  const req=event.request;
