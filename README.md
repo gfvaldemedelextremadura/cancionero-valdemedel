@@ -1,6 +1,6 @@
-# Cancionero Valdemedel v4.59
+# Cancionero Valdemedel v4.60
 
-Actualización: estabilidad en modo actuación (sin sondeo de 5 s ni repintado al renovar la sesión), la sesión no se pierde por falta de cobertura y las piezas sin letra muestran sus indicaciones a los invitados.
+Actualización: nueva categoría «Misa extremeña» con las 10 canciones de la misa en orden litúrgico (acordes pendientes).
 
 # Cancionero Valdemedel v4.40
 

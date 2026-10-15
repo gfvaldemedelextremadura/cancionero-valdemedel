@@ -101,6 +101,246 @@ function applyMayaOvejitasFixV55(){
  localStorage.setItem('vm2_maya_ovejitas_v55','1');
 }
 applyMayaOvejitasFixV55();
+// v4.60: Misa extremeña. Se añaden una sola vez y solo si no existen (no pisa ediciones posteriores).
+const MISA_EXTREMENA_V460=[
+ ['misa-ext-01',1,'Canto de entrada','','Fandango extremeño',`ACORDEÓN
+
+Canta, pueblo, canta Cristo,
+cantalé a tu Salvador, cantalé.
+Celebrando todos juntos
+nuestra vida y nuestra fe, cantalé.
+
+Vamos todos a encontrarnos
+a la mesa del altar,
+y cogidos de la mano
+construyamos la hermandad (bis).
+
+Canta, pueblo, canta…
+
+Escuchemos la palabra
+que es mensaje de alegría
+y nos pone en el camino
+que nos lleva hacia la vida (bis).
+
+Canta, pueblo, canta…
+
+Comeremos todos juntos,
+sellaremos la amistad;
+con nosotros en cabeza
+Cristo mismo marchará (bis).
+
+Canta, pueblo, canta…
+
+ACORDEÓN`],
+ ['misa-ext-02',2,'Señor, ten piedad','G','Jota de vaqueros',`INSTRUMENTOS
+
+Padre bueno, ten piedad (solos)
+T Ten piedad, Dios de nosotros (bis)
+
+INSTRUMENTOS
+
+Cristo Jesús, ten piedad (solos)
+T Ten piedad, Dios de nosotros (bis)
+
+INSTRUMENTOS
+
+Padre bueno, ten piedad (solos)
+T Ten piedad, Dios de nosotros (bis)
+
+INSTRUMENTOS`],
+ ['misa-ext-03',3,'Gloria','Em','Jota cuadrada',`Gloria a Dios en el cielo, gloria a su nombre,
+paz a todo el que ama, paz a los hombres.
+Gloria a Dios, gloria a Dios en el cielo,
+paz al hombre que lucha en el suelo.
+Gloria a Dios.
+
+Por la vida que nos diste,
+por los ríos, por los campos,
+por las flores, por las aves,
+Padre bueno, te alabamos.
+
+En la Extremadura que sufre y espera,
+donde nuestro canto fecunda la tierra,
+te gritamos, Señor, con los pobres
+nuestro anhelo de un mundo mejor.
+Con las manos tendidas a todos
+queremos vivir en justicia y amor.
+
+Por la risa de los niños,
+por la ayuda del hermano,
+por los besos de una madre,
+Padre bueno, te alabamos.
+
+En la Extremadura…`],
+ ['misa-ext-04',4,'Salmo','Em','Villancico de Fregenal',`INSTRUMENTOS
+
+Cantadle al Dios de los cielos,
+cantadle al Rey de la gloria;
+Él nos libró con su mano,
+Él nos dará la victoria.
+
+M Venid, cantemos
+H Aleluya
+M Gritad conmigo
+H Aleluya
+T Digamos todos
+T Aleluya
+
+INSTRUMENTOS
+
+Cantadle al Dios con trompetas,
+cantadle al son de tambores;
+aplaudan mares y ríos,
+aclamen todos los montes.
+
+Venid, cantemos…
+
+INSTRUMENTOS
+
+Cantadle un cántico nuevo
+al Dios que llena la tierra,
+al Dios de misericordia,
+porque cumplió su promesa.
+
+Venid, cantemos…`],
+ ['misa-ext-05',5,'Ofertorio','G','El triángulo',`INSTRUMENTOS
+
+Gracias, Padre, por el pan
+que alimenta nuestras vidas;
+gracias, Padre, por el vino
+que nos llena de alegría (bis).
+
+INSTRUMENTOS
+
+Te ofrecemos el trabajo,
+la inquietud de cada día,
+nuestros gozos y dolores,
+la ilusión que nos anima (bis).
+
+INSTRUMENTOS
+
+Gracias, Padre, por el pan…
+
+INSTRUMENTOS`],
+ ['misa-ext-06',6,'Santo','C','Hechizao y pastoras',`Santo, santo, te aclamamos,
+santo, santo, eres Señor;
+santo, santo, te aclamamos,
+tierra y cielo están llenos
+de tu gloria y esplendor (bis).
+
+Al que viene desde el cielo
+bendecimos en la tierra;
+con los hombres y los ángeles
+hoy cantamos tu grandeza.
+
+INSTRUMENTOS
+
+Santo, santo…`],
+ ['misa-ext-07',7,'Padre nuestro','Dm','Jota de la Siberia',`INSTRUMENTOS
+
+Padre que estás en el cielo,
+bendito sea tu nombre,
+para que llegue tu reino
+tu voluntad haga el hombre.
+
+INSTRUMENTOS
+
+El pan y todo cuanto esperamos
+dánoslo junto con tu perdón;
+haz que nosotros nos aceptemos
+y no caigamos en tentación.
+En la tentación, en la tentación,
+haz que no caigamos en la tentación.
+
+INSTRUMENTOS
+
+Padre nuestro que estás…
+
+El pan y todo…`],
+ ['misa-ext-08',8,'La paz','E','Fandango a la Virgen de los Remedios',`CEJILLA AL 3
+
+Líbranos de los males
+y de la envidia,
+del odio que divide,
+de la mentira,
+del rencor, del orgullo,
+de la soberbia.
+
+Y míranos, Señor, con tu clemencia;
+por tu bondad
+y por tu amor, buen Padre,
+danos la paz.`],
+ ['misa-ext-09',9,'Comunión','E','Rondeña de Orellana',`INSTRUMENTOS
+
+Cansados por el desierto (bis)
+llegamos hasta tu tienda;
+saliste a nuestro encuentro
+y nos brindaste tu mesa (bis los dos últimos).
+
+INSTRUMENTOS
+
+Lavaste los pies a todos (bis),
+nos diste el beso de paz,
+nos trataste como amigos,
+comimos juntos tu pan (bis los dos últimos).
+
+INSTRUMENTOS
+
+Cuando caía la tarde (bis),
+al despedirnos decías:
+comed juntos muchas veces
+y hacedlo en memoria mía (bis los dos últimos).
+
+INSTRUMENTOS
+
+Hoy de nuevo en el camino (bis)
+volvemos a encontrarnos;
+tu cuerpo y sangre comemos
+unidos con los hermanos (bis los dos últimos).
+
+INSTRUMENTOS`],
+ ['misa-ext-10',10,'Canto final','D','Jota de Guadalupe',`INSTRUMENTOS
+
+Con el pan que nos diste
+hoy nos volvemos,
+y de nuevo el camino
+emprenderemos.
+Tu mensaje de vida
+pregonaremos.
+Con el pan que nos diste
+hoy nos volvemos.
+
+Tu palabra nos anima,
+tu alimento nos esfuerza;
+tu palabra nos anima,
+abriremos nuevos surcos
+de esperanza en nuestra tierra (bis).
+
+Con el pan…
+
+Queremos ser tus testigos
+en el gozo y el dolor;
+queremos ser tus testigos,
+todos juntos sembraremos la semilla del amor (bis).
+
+Gracias, Padre, por la vida
+que encontramos en tu altar;
+gracias, Padre, por la vida,
+danos siempre el mismo vino, danos siempre el mismo pan (bis).
+
+Con el pan…
+
+INSTRUMENTOS`]
+].map(([id,massOrder,title,key,music,lyrics])=>({id,title,category:'Misa extremeña',massOrder,duration:'',chordMode:'pending',key,generalChords:'',sections:[],inlineContent:'',lyrics,voices:'',notes:`Misa extremeña · ${massOrder}. Música: ${music}.${id==='misa-ext-08'?' Cejilla al 3.':''}`,updatedAt:'2026-10-15T12:00:00.000Z',origin:'Misa extremeña',history:`Se canta con la música de: ${music}.`,curiosities:[],infoSource:'Libreto de la misa del Grupo Folklórico Valdemedel.'}));
+function applyMisaExtremenaV460(){
+ const key='vm2_misa_extremena_v460';
+ if(localStorage.getItem(key)==='1')return;
+ let changed=false;
+ MISA_EXTREMENA_V460.forEach(song=>{if(!state.songs.some(x=>String(x.id)===song.id)){state.songs.push(clone(song));changed=true}});
+ if(changed)localStorage.setItem(STORAGE.songs,JSON.stringify(state.songs));
+ localStorage.setItem(key,'1');
+}
+applyMisaExtremenaV460();
 window.addEventListener('pagehide',()=>{if(vmPerformanceWakeLock){try{vmPerformanceWakeLock.release()}catch(e){}}});
 // v4.27: se inicializa antes del primer render para evitar el error de acceso antes de inicialización.
 var memberState={session:null,profile:null,profiles:[],loading:false};
@@ -365,7 +605,7 @@ function render(){
 }
 function normalizeSearch(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es').replace(/\s+/g,' ').trim()}
 function matchesSearch(song,query){if(!query)return true;const sections=(song.sections||[]).map(x=>`${x.name||''} ${x.chords||''}`).join(' ');const haystack=normalizeSearch([song.title,song.category,song.key,song.generalChords,sections,song.lyrics,song.inlineContent,song.voices,song.notes].join(' '));return query.split(' ').every(term=>haystack.includes(term))}
-function updateLibraryResults(){const q=normalizeSearch(state.search);const filtered=state.songs.filter(s=>!s.performanceOnly&&(state.filter==='Todas'||s.category===state.filter)&&matchesSearch(s,q));const list=$('#songResults'),count=$('#searchCount');if(list)list.innerHTML=filtered.length?filtered.map(songCard).join(''):`<div class="empty">No se han encontrado canciones con esa búsqueda.</div>`;if(count)count.textContent=`${filtered.length} resultado${filtered.length===1?'':'s'}`;bindSongCards()}
+function updateLibraryResults(){const q=normalizeSearch(state.search);const filtered=state.songs.filter(s=>!s.performanceOnly&&(state.filter==='Todas'||s.category===state.filter)&&matchesSearch(s,q));if(state.filter==='Misa extremeña')filtered.sort((a,b)=>(Number(a.massOrder)||99)-(Number(b.massOrder)||99));const list=$('#songResults'),count=$('#searchCount');if(list)list.innerHTML=filtered.length?filtered.map(songCard).join(''):`<div class="empty">No se han encontrado canciones con esa búsqueda.</div>`;if(count)count.textContent=`${filtered.length} resultado${filtered.length===1?'':'s'}`;bindSongCards()}
 function renderLibrary(){const photos=[['actuacion-infantil.jpeg','Grupo infantil en actuación'],['romeria.jpeg','Valdemedel en romería'],['grupo.jpeg','El grupo'],['musicos-escenario.jpeg','Músicos y cantantes'],['festival.jpeg','Festival Folklórico'],['tamborilero.jpeg','Música desde el escenario'],['baile.jpeg','Baile en directo'],['musicos-historicos.jpeg','Memoria del grupo']];app.innerHTML=`<section class="hero apple-hero"><img class="hero-photo" src="baile.jpeg" alt="Grupo Folklórico Valdemedel en actuación"><div class="hero-shade"></div><div class="hero-copy"><span class="eyebrow">Grupo Folklórico Valdemedel</span><h1>Tu repertorio,<br>siempre contigo.</h1><p>${state.songs.filter(s=>!s.performanceOnly).length} canciones con letras, acordes e historia para ensayos y actuaciones.</p><div class="hero-stats"><span><b>${state.songs.filter(s=>!s.performanceOnly).length}</b> canciones</span><span><b>${state.performances.length}</b> actuaciones</span></div></div><img class="hero-mark" src="logo-blanco.png" alt=""></section><section class="gallery-section"><div class="section-title compact-title"><div><span class="eyebrow dark-eyebrow">Nuestra memoria</span><h2>Valdemedel en imágenes</h2></div><span>Desliza para ver más</span></div><div class="photo-rail">${photos.map((p,i)=>`<button class="photo-card photo-${i+1}" data-photo="${p[0]}" data-caption="${esc(p[1])}"><img src="${p[0]}" alt="${esc(p[1])}" loading="lazy"><span>${esc(p[1])}</span></button>`).join('')}</div></section><div class="section-title"><div><span class="eyebrow dark-eyebrow">Cancionero</span><h2>Todo el repertorio</h2></div>${state.isAdmin?'<button class="btn" id="newSong">＋ Nueva canción</button>':''}</div><div class="search-wrap"><input id="search" class="search" placeholder="Buscar canciones, letras o acordes" value="${esc(state.search)}"><button id="clearSearch" class="clear-search" type="button" aria-label="Borrar búsqueda">×</button></div><div class="search-info" id="searchCount"></div><div class="chips">${categories().map(c=>`<button class="chip ${state.filter===c?'active':''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div><div class="song-list" id="songResults"></div>`;const search=$('#search');
  search.setAttribute('autocomplete','off');search.setAttribute('autocorrect','off');search.setAttribute('spellcheck','false');
  search.oninput=e=>{state.search=e.target.value;updateLibraryResults();$('#clearSearch').classList.toggle('visible',!!state.search)};
@@ -1054,7 +1294,7 @@ const refreshCloudPerformancesV429=refreshCloudPerformances;refreshCloudPerforma
    v4.32 · Acceso obligatorio con excepción segura para invitados. Sin sesión aprobada no se
    renderiza ni se muestra ninguna sección de la aplicación.
    ========================================================== */
-const VM_AUTH_GATE_VERSION='4.59';
+const VM_AUTH_GATE_VERSION='4.60';
 function vmGateEl(id){return document.getElementById(id)}
 function vmGateSetScreen(screen,message=''){
  const gate=vmGateEl('authGate'); if(!gate)return;
