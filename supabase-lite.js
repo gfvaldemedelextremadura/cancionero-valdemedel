@@ -126,6 +126,10 @@
         return refreshed;
       } catch (error) {
         console.warn('No se pudo renovar la sesión de Supabase', error);
+        // v4.59: sin conexión o fallo temporal del servidor se conserva la sesión;
+        // solo se cierra si Supabase rechaza el token de renovación (4xx).
+        const status = Number(error && error.status) || 0;
+        if (status < 400 || status >= 500) return session;
         writeSession(null);
         emit('SIGNED_OUT', null);
         return null;
