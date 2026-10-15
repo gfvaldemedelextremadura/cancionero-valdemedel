@@ -1303,7 +1303,7 @@ const refreshCloudPerformancesV429=refreshCloudPerformances;refreshCloudPerforma
    v4.32 · Acceso obligatorio con excepción segura para invitados. Sin sesión aprobada no se
    renderiza ni se muestra ninguna sección de la aplicación.
    ========================================================== */
-const VM_AUTH_GATE_VERSION='4.61';
+const VM_AUTH_GATE_VERSION='4.62';
 function vmGateEl(id){return document.getElementById(id)}
 function vmGateSetScreen(screen,message=''){
  const gate=vmGateEl('authGate'); if(!gate)return;
@@ -1406,7 +1406,13 @@ async function vmAuthGateBoot(){
 // Cerrar sesión vuelve siempre al acceso obligatorio.
 const vmOriginalOpenAccount=openAccount;
 openAccount=function(){if(!memberState?.session?.user){vmGateSetScreen('login','Inicia sesión para acceder al Cancionero Valdemedel.');return}return vmOriginalOpenAccount()};
-requestAnimationFrame(vmAuthGateBoot);
+// v4.62: el arranque no puede depender solo de requestAnimationFrame: si el navegador no pinta
+// la página (ventana en segundo plano, PWA abriéndose) nunca se ejecuta y se queda en «Conectando…».
+// Se programa también con un temporizador de respaldo; lo que llegue primero arranca, y solo una vez.
+let vmAuthGateBootStarted=false;
+function vmStartAuthGateBootOnce(){if(vmAuthGateBootStarted)return;vmAuthGateBootStarted=true;vmAuthGateBoot()}
+requestAnimationFrame(vmStartAuthGateBootOnce);
+setTimeout(vmStartAuthGateBootOnce,300);
 
 
 // v4.36 - solicitudes nuevas se muestran como pendientes; solo aprobados desactivados aparecen bloqueados

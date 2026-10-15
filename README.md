@@ -1,6 +1,6 @@
-# Cancionero Valdemedel v4.61
+# Cancionero Valdemedel v4.62
 
-Actualización: estabilidad (sincronización cada 60 s, PDF sin conexión conservados entre versiones, un único controlador del modo actuación de invitado y salida limpia del modo actuación).
+Actualización: el arranque ya no se queda en «Conectando con el grupo…» si el navegador tarda en pintar la página (temporizador de respaldo).
 
 # Cancionero Valdemedel v4.40
 
