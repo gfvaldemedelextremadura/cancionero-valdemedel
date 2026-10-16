@@ -1,6 +1,6 @@
-# Cancionero Valdemedel v4.68
+# Cancionero Valdemedel v4.69
 
-Actualización: botones para avisar por WhatsApp de ensayos, encuestas, actuaciones y tareas, y «Añadir al calendario» que funciona en iPhone/iPad (servidor /api/ics), Google Calendar y descarga .ics.
+Actualización: enlace directo de registro (/?registro) y aviso de solicitudes pendientes para el administrador.
 
 # Cancionero Valdemedel v4.40
 

@@ -1319,7 +1319,7 @@ const refreshCloudPerformancesV429=refreshCloudPerformances;refreshCloudPerforma
    v4.32 · Acceso obligatorio con excepción segura para invitados. Sin sesión aprobada no se
    renderiza ni se muestra ninguna sección de la aplicación.
    ========================================================== */
-const VM_AUTH_GATE_VERSION='4.68';
+const VM_AUTH_GATE_VERSION='4.69';
 function vmGateEl(id){return document.getElementById(id)}
 function vmGateSetScreen(screen,message=''){
  const gate=vmGateEl('authGate'); if(!gate)return;
@@ -2566,6 +2566,64 @@ window.addEventListener('beforeunload',()=>{
     const m=taskTarget(t);b.insertAdjacentHTML('beforebegin',waBtn('task:'+t.id,m&&normPhone(m.phone)?'📲 Avisar a '+(m.first_name||String(m.full_name||'').split(' ')[0]):'📲 WhatsApp'));
    });
   }catch(e){console.warn('WhatsApp · tareas',e)}
+  return out;
+ };
+})();
+
+/* ==========================================================
+   v4.69 · Enlace directo de registro y aviso de solicitudes pendientes
+   - https://cancionero-valdemedel.vercel.app/?registro abre «Crear una cuenta»
+     en lugar de «Entrar» hasta que la persona pulse «Ya tengo cuenta».
+   - El administrador total ve en Grupo cuántas solicitudes esperan aprobación.
+   Sin temporizadores propios; nunca durante el modo actuación ni para invitados.
+   ========================================================== */
+(function vmRegistroV469(){
+ const isGuest=()=>Boolean(guestAccess&&guestAccess.token);
+ let wantsRegister=false;
+ try{const q=new URLSearchParams(location.search);wantsRegister=q.has('registro')||q.has('registrarse')||q.get('acceso')==='registro'}catch(e){}
+ if(wantsRegister&&!isGuest()){
+  const previousSetScreen=vmGateSetScreen;
+  vmGateSetScreen=function(screen,message){
+   if(wantsRegister&&screen==='login'){
+    return previousSetScreen.call(this,'register','Crea tu cuenta del Grupo Folklórico Valdemedel. El administrador la aprobará antes de que puedas entrar.');
+   }
+   return previousSetScreen.apply(this,arguments);
+  };
+  // Al pulsar «Ya tengo cuenta» o al entrar en la app se deja de forzar el registro (solo cambia un indicador; no detiene nada).
+  document.addEventListener('click',e=>{if(e.target.closest?.('#authShowLogin'))wantsRegister=false},true);
+  const previousUnlock=vmUnlockApp;vmUnlockApp=function(){wantsRegister=false;return previousUnlock.apply(this,arguments)};
+ }
+
+ const pending={count:0,lastLoad:0,loading:false};
+ async function loadPending(force){
+  if(isGuest()||!CLOUD_ENABLED||!cloudClient||typeof isTotalAdmin!=='function'||!isTotalAdmin()||pending.loading)return;
+  if(!force&&Date.now()-pending.lastLoad<120000)return;
+  pending.loading=true;
+  try{const {data,error}=await cloudClient.from('member_profiles').select('user_id').eq('approval_status','pending');if(error)throw error;pending.count=Array.isArray(data)?data.length:0;pending.lastLoad=Date.now()}
+  catch(e){console.warn('Solicitudes pendientes',e)}
+  finally{pending.loading=false}
+ }
+ const previousLoadGroupData=loadGroupData;
+ loadGroupData=async function(opts={}){
+  const out=await previousLoadGroupData.apply(this,arguments);
+  if(isGuest())return out;
+  const before=pending.count;
+  try{await loadPending(!opts.silent)}catch(e){}
+  if(pending.count!==before&&state.view==='management'&&!vmIsPerformanceActive())renderManagement();
+  return out;
+ };
+ const previousRenderManagement=renderManagement;
+ renderManagement=function(){
+  const out=previousRenderManagement.apply(this,arguments);
+  try{
+   if(isGuest()||state.view!=='management'||groupState.tab!=='upcoming'||!pending.count||typeof isTotalAdmin!=='function'||!isTotalAdmin())return out;
+   const shell=document.querySelector('#app .group-shell');if(!shell||shell.querySelector('[data-vm-pending-members]'))return out;
+   const html=`<button class="vm-banner task" data-vm-pending-members>👤 <span><b>${pending.count} ${pending.count===1?'solicitud pendiente':'solicitudes pendientes'}</b> de aprobar</span><span aria-hidden="true">›</span></button>`;
+   const banners=shell.querySelector('.vm-banners');
+   if(banners)banners.insertAdjacentHTML('afterbegin',html);
+   else{const anchor=shell.querySelector('.vm-next-card')||shell.querySelector('.group-tabs');anchor.insertAdjacentHTML(anchor.classList.contains('group-tabs')?'beforebegin':'afterend',`<div class="vm-banners">${html}</div>`)}
+   shell.querySelector('[data-vm-pending-members]').onclick=async()=>{await openMembersManager();pending.lastLoad=0};
+  }catch(e){console.warn('Aviso de solicitudes',e)}
   return out;
  };
 })();
