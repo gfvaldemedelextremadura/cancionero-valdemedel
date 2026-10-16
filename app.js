@@ -28,6 +28,22 @@ function vmClearStalePerformanceMode(){
  document.body.classList.remove('performing');
  vmReleasePerformanceWakeLock();
 }
+// v4.64: lectura de la actuación de un invitado mediante la función segura get_guest_performance.
+// Si la función todavía no existe en Supabase (SQL de privacidad sin ejecutar), usa la consulta antigua.
+async function vmFetchGuestPerformanceRow(token,signal){
+ const cfg=window.VALDEMEDEL_CLOUD||{};const base=String(cfg.url||'').replace(/\/$/,''),key=String(cfg.publishableKey||'').trim();
+ if(!base||!key)throw new Error('La conexión compartida no está configurada.');
+ const headers={apikey:key,Authorization:'Bearer '+key,Accept:'application/json'};
+ const rpc=await fetch(base+'/rest/v1/rpc/get_guest_performance',{method:'POST',cache:'no-store',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({p_token:String(token||'')}),signal});
+ if(rpc.ok){const rows=await rpc.json().catch(()=>null);return Array.isArray(rows)?(rows[0]||null):(rows&&rows.id?rows:null)}
+ if(rpc.status!==404){const p=await rpc.json().catch(()=>null);throw new Error(p?.message||('Error '+rpc.status))}
+ const query=new URLSearchParams({select:'*',guest_token:'eq.'+token,limit:'1'});
+ const old=await fetch(base+'/rest/v1/performances?'+query.toString(),{method:'GET',cache:'no-store',headers,signal});
+ const payload=await old.json().catch(()=>null);
+ if(!old.ok)throw new Error(payload?.message||payload?.error_description||('Error '+old.status));
+ return Array.isArray(payload)?(payload[0]||null):null;
+}
+function vmHasStoredSession(){try{return Boolean(localStorage.getItem('valdemedel_supabase_session_v1'))}catch(e){return false}}
 function vmIsPerformanceActive(){
  return Boolean(state.performanceMode||window.__VM_PERFORMANCE_ACTIVE||document.body.classList.contains('performing')||document.body.classList.contains('vm449-guest-performing')||document.body.classList.contains('vm445-guest-performing'));
 }
@@ -529,7 +545,7 @@ function backupLocalPerformances(){if(!CLOUD_ENABLED)return;try{if(!localStorage
 function localPerformanceBackup(){return load(LOCAL_PERFORMANCE_BACKUP_KEY,[])}
 function performanceFromRow(row){return {id:String(row.id),name:row.name||'Actuación Valdemedel',date:row.event_date||'',place:row.place||'',songs:Array.isArray(row.songs)?row.songs:[],annotations:row.annotations&&typeof row.annotations==='object'?row.annotations:{},dances:Array.isArray(row.dances)?row.dances:[],dancePdfUrl:row.dance_pdf_url||'',dancePdfName:row.dance_pdf_name||'',dancePdfPath:row.dance_pdf_path||'',participants:Array.isArray(row.participants)?row.participants:[],guestToken:row.guest_token||'',createdAt:row.created_at||'',updatedAt:row.updated_at||''}}
 function performanceToRow(p){return {id:String(p.id),name:p.name||'Actuación Valdemedel',event_date:p.date||null,place:p.place||'',songs:Array.isArray(p.songs)?p.songs:[],annotations:p.annotations&&typeof p.annotations==='object'?p.annotations:{},dances:Array.isArray(p.dances)?p.dances:[],dance_pdf_url:p.dancePdfUrl||'',dance_pdf_name:p.dancePdfName||'',dance_pdf_path:p.dancePdfPath||'',participants:Array.isArray(p.participants)?p.participants:[],guest_token:p.guestToken||null,created_at:p.createdAt||new Date().toISOString(),updated_at:p.updatedAt||new Date().toISOString()}}
-async function refreshCloudPerformances({silent=false}={}){if(!CLOUD_ENABLED||!cloudClient)return;if(!silent){state.cloudLoading=true;state.cloudError='';if(state.view==='performances')renderPerformances()}try{const {data,error}=await cloudClient.from('performances').select('*').order('event_date',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false});if(error)throw error;state.performances=mergeOfflinePerformances((data||[]).map(performanceFromRow));state.cloudLoading=false;state.cloudError='';state.cloudLastSync=new Date().toISOString();const offlineMap=offlinePerformanceMap();let offlineChanged=false;state.performances.forEach(p=>{if(offlineMap[String(p.id)]){offlineMap[String(p.id)]={performance:clone(p),songs:(p.songs||[]).map(songId=>state.songs.find(s=>s.id===songId)).filter(Boolean).map(clone),savedAt:offlineMap[String(p.id)].savedAt||new Date().toISOString(),updatedAt:p.updatedAt||''};offlineChanged=true}});if(offlineChanged)saveOfflinePerformanceMap(offlineMap);persist();if(state.view==='performances'||(state.view==='library'&&!vmSearchIsBeingEdited()))render()}catch(err){console.error('Error al sincronizar actuaciones',err);state.cloudLoading=false;state.cloudError=err?.message||'No se ha podido conectar con la base de datos.';if(state.view==='performances')renderPerformances()}}
+async function refreshCloudPerformances({silent=false}={}){if(!CLOUD_ENABLED||!cloudClient)return;if(!vmHasStoredSession())return;if(!silent){state.cloudLoading=true;state.cloudError='';if(state.view==='performances')renderPerformances()}try{const {data,error}=await cloudClient.from('performances').select('*').order('event_date',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false});if(error)throw error;state.performances=mergeOfflinePerformances((data||[]).map(performanceFromRow));state.cloudLoading=false;state.cloudError='';state.cloudLastSync=new Date().toISOString();const offlineMap=offlinePerformanceMap();let offlineChanged=false;state.performances.forEach(p=>{if(offlineMap[String(p.id)]){offlineMap[String(p.id)]={performance:clone(p),songs:(p.songs||[]).map(songId=>state.songs.find(s=>s.id===songId)).filter(Boolean).map(clone),savedAt:offlineMap[String(p.id)].savedAt||new Date().toISOString(),updatedAt:p.updatedAt||''};offlineChanged=true}});if(offlineChanged)saveOfflinePerformanceMap(offlineMap);persist();if(state.view==='performances'||(state.view==='library'&&!vmSearchIsBeingEdited()))render()}catch(err){console.error('Error al sincronizar actuaciones',err);state.cloudLoading=false;state.cloudError=err?.message||'No se ha podido conectar con la base de datos.';if(state.view==='performances')renderPerformances()}}
 function subscribeCloudPerformances(){if(!CLOUD_ENABLED||!cloudClient||cloudChannel)return;cloudChannel=cloudClient.channel('valdemedel-performances').on('postgres_changes',{event:'*',schema:'public',table:'performances'},()=>{if(vmIsPerformanceActive())return;refreshCloudPerformances({silent:true})}).subscribe()}
 function offerLegacyPublication(){if(!state.isAdmin||!CLOUD_ENABLED||legacyOfferShown)return;const legacy=localPerformanceBackup();if(!legacy.length)return;legacyOfferShown=true;setTimeout(()=>{if(confirm(`Hay ${legacy.length} actuación${legacy.length===1?'':'es'} guardada${legacy.length===1?'':'s'} en este dispositivo de versiones anteriores. ¿Publicarla${legacy.length===1?'':'s'} ahora para que la vea todo el grupo?`))publishLocalPerformances({skipConfirm:true})},250)}
 let cloudInitPromise=null;
@@ -1239,7 +1255,7 @@ async function createGuestAccess(id){
 }
 async function loadGuestPerformance(){
  if(!guestAccess.token||!cloudClient)return;guestAccess.loading=true;
- try{const {data,error}=await cloudClient.from('performances').select('*').eq('guest_token',guestAccess.token).single();if(error)throw error;guestAccess.performance=performanceFromRow(data);guestAccess.error=''}catch(e){guestAccess.error='El enlace no es válido o la actuación ya no está disponible.'}finally{guestAccess.loading=false;render()}
+ try{const data=await vmFetchGuestPerformanceRow(guestAccess.token);if(!data)throw new Error('El enlace no corresponde a ninguna actuación disponible.');guestAccess.performance=performanceFromRow(data);guestAccess.error=''}catch(e){guestAccess.error='El enlace no es válido o la actuación ya no está disponible.'}finally{guestAccess.loading=false;render()}
 }
 function renderGuestAccess(){
  document.body.classList.add('guest-access-mode');const p=guestAccess.performance;
@@ -1303,7 +1319,7 @@ const refreshCloudPerformancesV429=refreshCloudPerformances;refreshCloudPerforma
    v4.32 · Acceso obligatorio con excepción segura para invitados. Sin sesión aprobada no se
    renderiza ni se muestra ninguna sección de la aplicación.
    ========================================================== */
-const VM_AUTH_GATE_VERSION='4.63';
+const VM_AUTH_GATE_VERSION='4.64';
 function vmGateEl(id){return document.getElementById(id)}
 function vmGateSetScreen(screen,message=''){
  const gate=vmGateEl('authGate'); if(!gate)return;
@@ -1322,6 +1338,7 @@ function vmUnlockApp(){
  state.view='management';
  renderChrome();render();
  if(typeof loadGroupData==='function')loadGroupData({silent:true});
+ if(CLOUD_ENABLED&&cloudClient)refreshCloudPerformances({silent:true}).catch(e=>console.warn('Actuaciones tras entrar',e));
 }
 function vmGateProfileApproved(){
  const email=String(memberState?.session?.user?.email||'').toLowerCase();
@@ -1503,20 +1520,8 @@ window.addEventListener('beforeunload',()=>{
    const base=String(CLOUD_CONFIG?.url||'').replace(/\/$/,'');
    const key=String(CLOUD_CONFIG?.publishableKey||'').trim();
    if(!base||!key)throw new Error('La conexión compartida no está configurada.');
-   const query=new URLSearchParams({select:'*',guest_token:'eq.'+token,limit:'1'});
    const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),12000);
-   const response=await fetch(base+'/rest/v1/performances?'+query.toString(),{
-    method:'GET',
-    cache:'no-store',
-    headers:{apikey:key,Authorization:'Bearer '+key,Accept:'application/json'},signal:controller.signal
-   });
-   clearTimeout(timeout);
-   const payload=await response.json().catch(()=>null);
-   if(!response.ok){
-    const message=payload?.message||payload?.error_description||('Error '+response.status);
-    throw new Error(message);
-   }
-   const row=Array.isArray(payload)?payload[0]:null;
+   let row=null;try{row=await vmFetchGuestPerformanceRow(token,controller.signal)}finally{clearTimeout(timeout)}
    if(!row)throw new Error('El enlace no corresponde a ninguna actuación disponible.');
    guestAccess.performance=performanceFromRow(row);
    guestAccess.error='';
@@ -1721,9 +1726,9 @@ window.addEventListener('beforeunload',()=>{
  }
  async function getPerformance(){
   if(guestAccess?.performance&&String(guestAccess.token||'')===guestToken)return guestAccess.performance;
-  const rows=await rest('performances?select=*&guest_token=eq.'+encodeURIComponent(guestToken)+'&limit=1');
-  if(!rows?.length)throw new Error('La invitación no existe o ya no está disponible');
-  return typeof performanceFromRow==='function'?performanceFromRow(rows[0]):rows[0];
+  const row=await vmFetchGuestPerformanceRow(guestToken);
+  if(!row)throw new Error('La invitación no existe o ya no está disponible');
+  return typeof performanceFromRow==='function'?performanceFromRow(row):row;
  }
  async function getSongs(p){
   const map=new Map();
@@ -1792,9 +1797,9 @@ window.addEventListener('beforeunload',()=>{
  }
  async function loadPerformance(){
   if(window.guestAccess?.performance&&sid(window.guestAccess.token)===guestToken)return window.guestAccess.performance;
-  const rows=await rest('performances?select=*&guest_token=eq.'+encodeURIComponent(guestToken)+'&limit=1');
-  if(!rows?.length)throw new Error('La invitación no existe o ya no está disponible');
-  return typeof performanceFromRow==='function'?performanceFromRow(rows[0]):rows[0];
+  const row=await vmFetchGuestPerformanceRow(guestToken);
+  if(!row)throw new Error('La invitación no existe o ya no está disponible');
+  return typeof performanceFromRow==='function'?performanceFromRow(row):row;
  }
  async function loadSongs(p){
   const byId=new Map(),byTitle=new Map();

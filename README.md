@@ -1,6 +1,6 @@
-# Cancionero Valdemedel v4.63
+# Cancionero Valdemedel v4.64
 
-Actualización: «Lo próximo» con cuenta atrás, colores por tipo de evento, actuaciones en el calendario, «Añadir al calendario» del móvil y Memoria del grupo por años.
+Actualización: privacidad. El enlace de invitado lee solo su actuación (get_guest_performance) y, tras ejecutar supabase-v464-privacidad.sql, actuaciones, eventos y avisos solo los ven los miembros aprobados.
 
 # Cancionero Valdemedel v4.40
 
