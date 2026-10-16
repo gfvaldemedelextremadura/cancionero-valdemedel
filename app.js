@@ -1303,7 +1303,7 @@ const refreshCloudPerformancesV429=refreshCloudPerformances;refreshCloudPerforma
    v4.32 · Acceso obligatorio con excepción segura para invitados. Sin sesión aprobada no se
    renderiza ni se muestra ninguna sección de la aplicación.
    ========================================================== */
-const VM_AUTH_GATE_VERSION='4.62';
+const VM_AUTH_GATE_VERSION='4.63';
 function vmGateEl(id){return document.getElementById(id)}
 function vmGateSetScreen(screen,message=''){
  const gate=vmGateEl('authGate'); if(!gate)return;
@@ -1869,4 +1869,155 @@ window.addEventListener('beforeunload',()=>{
  document.addEventListener('click',e=>{const b=e.target.closest?.('#guestPerform');if(!b)return;e.preventDefault();open()});
  window.addEventListener('resize',()=>{if(!active)return;clearTimeout(resizeTimer);resizeTimer=setTimeout(renderSong,120)});
  window.addEventListener('popstate',()=>{if(active)close()});
+})();
+
+/* ==========================================================
+   v4.63 · Organización y ambiente (fase A)
+   «Lo próximo» con cuenta atrás, colores por tipo, actuaciones en el
+   calendario, «Añadir al calendario» (.ics) y memoria del grupo.
+   Solo usa datos ya cargados: no hace peticiones ni temporizadores y
+   no interviene en el modo actuación ni en el modo invitado.
+   ========================================================== */
+(function vmOrganizacionV463(){
+ const isGuest=()=>Boolean(guestAccess&&guestAccess.token);
+ const KIND_LABEL={rehearsal:'Ensayo',poll:'Encuesta de actuación',performance:'Actuación'};
+ function localToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+ function daysUntil(date){const a=new Date(localToday()+'T12:00:00'),b=new Date(date+'T12:00:00');return Math.round((b-a)/86400000)}
+ function countdownText(item){
+  const n=daysUntil(item.date);
+  if(n===0)return item.time?'Hoy a las '+item.time:'Hoy';
+  if(n===1)return item.time?'Mañana a las '+item.time:'Mañana';
+  if(n<0)return '';
+  return 'En '+n+' días';
+ }
+ function agendaItems(){
+  const items=[],perfIds=new Set((state.performances||[]).map(p=>String(p.id)));
+  const pollByPerformance={},norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const perfByDateName=new Map((state.performances||[]).map(p=>[p.date+'|'+norm(p.name),String(p.id)]));
+  (groupState.events||[]).forEach(e=>{
+   let converted=String(e.logistics?.converted_performance_id||'');
+   // Encuestas no convertidas con el botón pero con una actuación igual (misma fecha y nombre).
+   if(e.kind==='performance_poll'&&!converted)converted=perfByDateName.get((e.event_date||'')+'|'+norm(e.title))||'';
+   if(e.kind==='performance_poll'&&converted&&perfIds.has(converted)){if(!pollByPerformance[converted])pollByPerformance[converted]=e;return}
+   items.push({kind:e.kind==='rehearsal'?'rehearsal':'poll',id:String(e.id),title:e.title||'',date:e.event_date||'',time:String(e.event_time||'').slice(0,5),place:e.place||'',details:e.details||''});
+  });
+  (state.performances||[]).forEach(p=>{
+   const poll=pollByPerformance[String(p.id)];
+   items.push({kind:'performance',id:String(p.id),title:p.name||'Actuación',date:p.date||poll?.event_date||'',time:String(poll?.event_time||'').slice(0,5),place:p.place||poll?.place||'',details:poll?.details||''});
+  });
+  return items.filter(i=>i.date).sort((a,b)=>(a.date+(a.time||'99')).localeCompare(b.date+(b.time||'99')));
+ }
+ function upcomingItems(){const today=localToday();return agendaItems().filter(i=>i.date>=today)}
+ function findItem(key){const [kind,...rest]=String(key).split(':');const id=rest.join(':');return agendaItems().find(i=>i.kind===kind&&i.id===id)}
+
+ // ---------- Añadir al calendario (.ics) ----------
+ function icsText(s){return String(s||'').replace(/\\/g,'\\\\').replace(/\r?\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;')}
+ function icsFold(line){const out=[];let rest=line;while(rest.length>70){out.push(rest.slice(0,70));rest=' '+rest.slice(70)}out.push(rest);return out.join('\r\n')}
+ function icsDate(date){return date.replace(/-/g,'')}
+ function icsEvent(item){
+  const stamp=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+Z$/,'Z');
+  const lines=['BEGIN:VEVENT','UID:'+item.kind+'-'+item.id+'@cancionero-valdemedel','DTSTAMP:'+stamp];
+  if(item.time){
+   const start=new Date(item.date+'T'+item.time+':00'),end=new Date(start.getTime()+2*3600000);
+   const f=d=>d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'T'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0')+'00';
+   lines.push('DTSTART:'+f(start),'DTEND:'+f(end));
+  }else{
+   const next=new Date(item.date+'T12:00:00');next.setDate(next.getDate()+1);
+   const nd=next.getFullYear()+String(next.getMonth()+1).padStart(2,'0')+String(next.getDate()).padStart(2,'0');
+   lines.push('DTSTART;VALUE=DATE:'+icsDate(item.date),'DTEND;VALUE=DATE:'+nd);
+  }
+  lines.push('SUMMARY:'+icsText(KIND_LABEL[item.kind]+' · '+item.title));
+  if(item.place)lines.push('LOCATION:'+icsText(item.place));
+  lines.push('DESCRIPTION:'+icsText((item.details?item.details+'\n\n':'')+'Grupo Folklórico Valdemedel · Cancionero Valdemedel'));
+  if(item.time)lines.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsText(item.title),'TRIGGER:-PT2H','END:VALARM');
+  lines.push('END:VEVENT');
+  return lines.map(icsFold).join('\r\n');
+ }
+ function icsCalendar(items){return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Grupo Folklorico Valdemedel//Cancionero//ES','CALSCALE:GREGORIAN','METHOD:PUBLISH',...items.map(icsEvent),'END:VCALENDAR'].join('\r\n')+'\r\n'}
+ function isAppleMobile(){return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)}
+ function addToCalendar(items,filename){
+  if(!items.length)return toast('No hay fechas para añadir al calendario.');
+  const text=icsCalendar(items);
+  const a=document.createElement('a');
+  if(isAppleMobile()){
+   // En iPhone/iPad, Safari abre el archivo de calendario y ofrece «Añadir todo».
+   a.href='data:text/calendar;charset=utf-8,'+encodeURIComponent(text);a.target='_blank';a.rel='noopener';
+  }else{
+   a.href=URL.createObjectURL(new Blob([text],{type:'text/calendar;charset=utf-8'}));a.download=filename;
+   setTimeout(()=>URL.revokeObjectURL(a.href),60000);
+  }
+  document.body.append(a);a.click();a.remove();
+ }
+ function slug(s){return String(s||'evento').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'evento'}
+ function openItem(item){if(!item)return;if(item.kind==='performance')return openSavedPerformance(item.id);openEventEditor(item.id,true)}
+
+ // ---------- «Lo próximo» en Grupo ----------
+ function nextUpMarkup(){
+  const list=upcomingItems();if(!list.length)return '';
+  const first=list[0],later=list.slice(1,3);
+  return `<section class="vm-next-card vm-kind-${first.kind}"><div class="vm-next-top"><span class="vm-next-kicker">Lo próximo</span><span class="kind-pill vm-pill-${first.kind}">${KIND_LABEL[first.kind]}</span></div><div class="vm-next-count">${groupEsc(countdownText(first))}</div><h3>${groupEsc(first.title)}</h3><div class="group-meta">${groupEsc(dateHuman(first.date,first.time))}${first.place?' · '+groupEsc(first.place):''}</div><div class="vm-next-actions"><button class="btn small" data-vm-open="${first.kind}:${groupEsc(first.id)}">Ver</button><button class="btn ghost small" data-vm-ics="${first.kind}:${groupEsc(first.id)}">📅 Añadir al calendario</button></div>${later.length?`<div class="vm-next-later"><strong>Después</strong>${later.map(i=>`<button class="vm-next-later-row" data-vm-open="${i.kind}:${groupEsc(i.id)}"><span class="vm-dot vm-dot-${i.kind}"></span><span>${groupEsc(i.title)}</span><small>${groupEsc(countdownText(i))}</small></button>`).join('')}</div>`:''}</section>`;
+ }
+ function bindAgendaButtons(root=document){
+  root.querySelectorAll('[data-vm-open]').forEach(b=>b.onclick=()=>openItem(findItem(b.dataset.vmOpen)));
+  root.querySelectorAll('[data-vm-ics]').forEach(b=>b.onclick=()=>{const item=findItem(b.dataset.vmIcs);if(item)addToCalendar([item],slug(item.title)+'.ics')});
+  const all=root.querySelector('#vmIcsAll');if(all)all.onclick=()=>addToCalendar(upcomingItems(),'calendario-valdemedel.ics');
+ }
+ const previousRenderManagement=renderManagement;
+ renderManagement=function(){
+  const out=previousRenderManagement.apply(this,arguments);
+  if(isGuest()||state.view!=='management'||groupState.tab!=='upcoming')return out;
+  try{
+   const shell=document.querySelector('#app .group-shell');
+   if(shell&&!shell.querySelector('.vm-next-card')){const html=nextUpMarkup();if(html){shell.insertAdjacentHTML('afterbegin',html);bindAgendaButtons(shell)}}
+  }catch(e){console.warn('Lo próximo',e)}
+  return out;
+ };
+
+ // ---------- Colores por tipo y calendario con actuaciones ----------
+ const previousEventCard=eventCard;
+ eventCard=function(e){
+  const html=previousEventCard.apply(this,arguments);
+  if(!e?.event_date)return html;
+  const kind=e.kind==='rehearsal'?'rehearsal':'poll';
+  const btn=`<div class="vm-card-cal"><button class="btn ghost small" data-vm-ics="${kind}:${groupEsc(e.id)}">📅 Añadir al calendario</button></div>`;
+  const i=html.lastIndexOf('</article>');
+  return (i>=0?html.slice(0,i)+btn+html.slice(i):html).replace('<article class="group-card">',`<article class="group-card vm-kind-${kind}">`);
+ };
+ calendarMarkup=function(){
+  const all=agendaItems();
+  if(!all.length)return '<div class="group-empty">No hay fechas programadas.</div>';
+  const today=localToday();let month='';
+  const legend=`<div class="vm-cal-head"><div class="vm-legend"><span><i class="vm-dot vm-dot-rehearsal"></i>Ensayo</span><span><i class="vm-dot vm-dot-poll"></i>Encuesta</span><span><i class="vm-dot vm-dot-performance"></i>Actuación</span></div>${upcomingItems().length?'<button class="btn ghost small" id="vmIcsAll">📅 Añadir próximas al calendario</button>':''}</div>`;
+  return legend+all.map(e=>{
+   const d=new Date(e.date+'T12:00:00');const m=d.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+   const head=m!==month?(month=m,`<h3 class="calendar-month">${m.charAt(0).toUpperCase()+m.slice(1)}</h3>`):'';
+   const past=e.date<today;
+   return head+`<div class="calendar-row vm-cal-row vm-kind-${e.kind} ${past?'vm-past':''}"><div class="calendar-date">${d.getDate()}<small>${d.toLocaleDateString('es-ES',{weekday:'short'})}</small></div><div><strong>${groupEsc(e.title)}</strong><div class="group-meta">${KIND_LABEL[e.kind]}${e.time?' · '+e.time:''}${e.place?' · '+groupEsc(e.place):''}</div></div><div class="vm-cal-actions">${past?'':`<button class="btn ghost small" data-vm-ics="${e.kind}:${groupEsc(e.id)}" aria-label="Añadir al calendario">📅</button>`}<button class="btn ghost small" data-vm-open="${e.kind}:${groupEsc(e.id)}">Ver</button></div></div>`;
+  }).join('');
+ };
+ const previousBindManagementEvents=bindManagementEvents;
+ bindManagementEvents=function(){
+  const out=previousBindManagementEvents.apply(this,arguments);
+  try{const root=document.querySelector('#app');if(root)bindAgendaButtons(root)}catch(e){console.warn('Calendario',e)}
+  return out;
+ };
+
+ // ---------- Memoria del grupo en Actuaciones ----------
+ function placeKey(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\(.*?\)/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
+ function memoryMarkup(){
+  const today=localToday();
+  const past=(state.performances||[]).filter(p=>p.date&&p.date<today).sort((a,b)=>b.date.localeCompare(a.date));
+  if(!past.length)return '';
+  const years={};past.forEach(p=>{const y=p.date.slice(0,4);(years[y]=years[y]||[]).push(p)});
+  const places=new Set(past.map(p=>placeKey(p.place)).filter(Boolean));
+  const thisYear=String(new Date().getFullYear());
+  return `<section class="vm-memory"><div class="section-title"><div><span class="eyebrow dark-eyebrow">Nuestra historia</span><h2>Memoria del grupo</h2></div></div><div class="vm-memory-stats"><div><b>${past.length}</b><span>actuaciones</span></div><div><b>${(years[thisYear]||[]).length}</b><span>en ${thisYear}</span></div><div><b>${places.size}</b><span>${places.size===1?'lugar':'lugares'}</span></div></div>${Object.keys(years).sort((a,b)=>b.localeCompare(a)).map(y=>`<details class="vm-memory-year" ${y===thisYear?'open':''}><summary><span>${y}</span><small>${years[y].length} ${years[y].length===1?'actuación':'actuaciones'}</small></summary>${years[y].map(p=>{const d=new Date(p.date+'T12:00:00');return `<div class="vm-memory-row"><div class="calendar-date">${d.getDate()}<small>${d.toLocaleDateString('es-ES',{month:'short'})}</small></div><div><strong>${esc(p.name||'Actuación')}</strong>${p.place?`<div class="group-meta">${esc(p.place)}</div>`:''}</div><small class="vm-memory-songs">${(p.songs||[]).length} piezas</small></div>`}).join('')}</details>`).join('')}</section>`;
+ }
+ const previousRenderPerformances=renderPerformances;
+ renderPerformances=function(){
+  const out=previousRenderPerformances.apply(this,arguments);
+  if(isGuest()||state.view!=='performances')return out;
+  try{const html=memoryMarkup();if(html&&!document.querySelector('#app .vm-memory'))document.querySelector('#app').insertAdjacentHTML('beforeend',html)}catch(e){console.warn('Memoria del grupo',e)}
+  return out;
+ };
 })();

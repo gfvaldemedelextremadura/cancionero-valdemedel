@@ -1,6 +1,6 @@
-# Cancionero Valdemedel v4.62
+# Cancionero Valdemedel v4.63
 
-Actualización: el arranque ya no se queda en «Conectando con el grupo…» si el navegador tarda en pintar la página (temporizador de respaldo).
+Actualización: «Lo próximo» con cuenta atrás, colores por tipo de evento, actuaciones en el calendario, «Añadir al calendario» del móvil y Memoria del grupo por años.
 
 # Cancionero Valdemedel v4.40
 
