@@ -659,3 +659,13 @@ body.search-typing .search-wrap{position:relative;z-index:20}
 .vm-route-row span{color:var(--muted);font-weight:700;font-size:14px}.vm-route-row a{color:var(--wine);font-weight:800}
 .vm-birthday-box{display:grid;gap:8px;margin-top:6px;padding-top:14px;border-top:1px solid var(--line)}
 @media(max-width:520px){.vm-task{grid-template-columns:auto 1fr}.vm-task-actions{grid-column:2;justify-content:flex-start}.vm-ward{grid-template-columns:1fr auto}.vm-ward .vm-task-actions{grid-column:1/-1;justify-content:flex-start}.vm-route-row{grid-template-columns:1fr;gap:2px}.vm-att-sum-row{grid-template-columns:1fr auto;}.vm-att-sum-row .vm-bar{grid-column:1/-1;order:3}.vm-att-sum-row small{display:none}}
+
+/* v4.66 · Datos personales y préstamos de vestuario */
+.vm-ward.pending{border-color:rgba(176,122,31,.45);background:linear-gradient(135deg,rgba(176,122,31,.10),var(--paper))}
+.vm-ward-admin{padding:12px 14px;border-radius:16px;background:var(--paper);border:1px dashed var(--line);margin-bottom:12px}
+.vm-ward-admin label{display:grid;gap:6px;font-weight:700}
+.vm-ward-cat{margin:12px 0 6px;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.vm-ward-group{margin:6px 0 12px}.vm-ward-inner{padding:0 10px 10px}
+.vm-av{color:#1f6b3a}.vm-av.none{color:#9b1c2c}
+.vm-cond{flex-wrap:wrap}
+.vm-details-box{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;background:var(--paper);border:1px solid var(--line)}

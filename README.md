@@ -1,6 +1,6 @@
-# Cancionero Valdemedel v4.65
+# Cancionero Valdemedel v4.66
 
-Actualización: tareas con responsable, asistencia a ensayos, vestuario, hoja de ruta de cada actuación, cumpleaños y aniversario (requiere supabase-v464-privacidad.sql y supabase-v465-organizacion.sql).
+Actualización: datos personales de cada miembro (nombre, apellidos, género y teléfono) y vestuario con stock, préstamos y devoluciones confirmadas por la responsable (requiere supabase-v466-datos-y-vestuario.sql).
 
 # Cancionero Valdemedel v4.40
 

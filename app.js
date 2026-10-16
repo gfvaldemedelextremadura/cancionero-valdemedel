@@ -1319,7 +1319,7 @@ const refreshCloudPerformancesV429=refreshCloudPerformances;refreshCloudPerforma
    v4.32 · Acceso obligatorio con excepción segura para invitados. Sin sesión aprobada no se
    renderiza ni se muestra ninguna sección de la aplicación.
    ========================================================== */
-const VM_AUTH_GATE_VERSION='4.65';
+const VM_AUTH_GATE_VERSION='4.66';
 function vmGateEl(id){return document.getElementById(id)}
 function vmGateSetScreen(screen,message=''){
  const gate=vmGateEl('authGate'); if(!gate)return;
@@ -2037,7 +2037,7 @@ window.addEventListener('beforeunload',()=>{
    ========================================================== */
 (function vmOrganizacionV465(){
  const isGuest=()=>Boolean(guestAccess&&guestAccess.token);
- const org={tasks:null,attendance:null,wardrobe:null,members:null,settings:null,lastLoad:0,loading:false,taskFilter:'mine'};
+ const org={tasks:null,attendance:null,wardrobe:null,loans:null,myDetails:null,members:null,settings:null,lastLoad:0,loading:false,taskFilter:'mine'};
  const isManager=()=>typeof canManageContent==='function'&&canManageContent();
  const signedIn=()=>typeof isMemberSignedIn==='function'&&isMemberSignedIn();
  const myId=()=>String(currentUser()?.id||'');
@@ -2047,7 +2047,7 @@ window.addEventListener('beforeunload',()=>{
  function daysUntil(date){return Math.round((new Date(date+'T12:00:00')-new Date(localToday()+'T12:00:00'))/86400000)}
  function shortDate(date){return new Date(date+'T12:00:00').toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'})}
  function isMissing(err){const t=[err?.message,err?.details?.message,err?.details?.code,err?.code,err?.details?.hint].join(' ');return err?.status===404||/does not exist|schema cache|PGRST20[0-9]|42P01|42883|42703|Could not find/i.test(t)}
- function sqlHint(err){return isMissing(err)?'Falta ejecutar en Supabase el archivo supabase-v465-organizacion.sql.':(err?.message||'Error desconocido')}
+ function sqlHint(err){return isMissing(err)?'Falta ejecutar en Supabase el último script SQL (supabase-v466-datos-y-vestuario.sql).':(err?.message||'Error desconocido')}
  async function run(promise){const {data,error}=await promise;if(error)throw error;return data}
  function memberName(id){const m=(org.members||[]).find(x=>String(x.user_id)===String(id));return m?m.full_name:''}
  function memberOptions(selected,emptyLabel){return `<option value="">${h(emptyLabel)}</option>`+(org.members||[]).map(m=>`<option value="${h(m.user_id)}" ${String(selected||'')===String(m.user_id)?'selected':''}>${h(m.full_name)}</option>`).join('')}
@@ -2064,7 +2064,9 @@ window.addEventListener('beforeunload',()=>{
     take('attendance',()=>run(cloudClient.from('event_attendance').select('*'))),
     take('wardrobe',()=>run(cloudClient.from('wardrobe_items').select('*').order('name',{ascending:true}))),
     take('members',async()=>{const {data,error}=await cloudClient.rpc('list_group_members',{});if(error)throw error;return Array.isArray(data)?data:[]}),
-    take('settings',async()=>{const rows=await run(cloudClient.from('group_settings').select('*'));return Object.fromEntries((rows||[]).map(r=>[r.key,r.value]))})
+    take('settings',async()=>{const rows=await run(cloudClient.from('group_settings').select('*'));return Object.fromEntries((rows||[]).map(r=>[r.key,r.value]))}),
+    take('loans',()=>run(cloudClient.from('wardrobe_loans').select('*').order('lent_at',{ascending:true}))),
+    take('myDetails',async()=>{const {data,error}=await cloudClient.rpc('get_my_details',{});if(error)throw error;const r=Array.isArray(data)?data[0]:data;return r||{}})
    ]);
    org.lastLoad=Date.now();
   }finally{org.loading=false}
@@ -2075,6 +2077,7 @@ window.addEventListener('beforeunload',()=>{
   if(isGuest())return out;
   try{await loadOrg(!opts.silent)}catch(e){console.warn('Organización',e)}
   if(state.view==='management'&&!vmIsPerformanceActive())renderManagement();
+  maybeAskDetails();
   return out;
  };
  async function reloadAndRender(){await loadOrg(true);if(state.view==='management')renderManagement();if(state.view==='performances')renderPerformances()}
@@ -2085,7 +2088,7 @@ window.addEventListener('beforeunload',()=>{
   let html=previousTabs.apply(this,arguments);
   const extra=[];
   if(org.tasks!==null&&signedIn())extra.push(['tasks','Tareas']);
-  if(org.wardrobe!==null&&signedIn())extra.push(['wardrobe','Vestuario']);
+  if(org.wardrobe!==null&&org.loans!==null&&signedIn())extra.push(['wardrobe','Vestuario']);
   if(!extra.length)return html;
   const buttons=extra.map(([id,label])=>`<button data-group-tab="${id}" class="${groupState.tab===id?'active':''}">${label}</button>`).join('');
   const i=html.lastIndexOf('</div>');
@@ -2127,33 +2130,143 @@ window.addEventListener('beforeunload',()=>{
   try{await run(cloudClient.from('group_tasks').delete().eq('id',id));await reloadAndRender();toast('Tarea eliminada')}catch(e){alert('No se pudo eliminar. '+sqlHint(e))}
  }
 
- // ---------- Vestuario ----------
- const WARDROBE_STATUS={ok:'En buen estado',repair:'Necesita arreglo',lost:'Perdida'};
+ // ---------- Vestuario (v4.66: stock y préstamos) ----------
+ // Gestionan: la persona responsable de vestuario, las directoras de baile y los administradores.
+ const CONDITION={ok:'En buen estado',repair:'Necesita arreglo',lost:'Perdida'};
+ function isWardrobeManager(){
+  if(!signedIn())return false;
+  if(typeof isTotalAdmin==='function'&&isTotalAdmin())return true;
+  if(['admin_total','dance_director'].includes(currentMemberRole()))return true;
+  const wm=String(org.settings?.wardrobe_manager?.user_id||'');return Boolean(wm&&wm===myId());
+ }
+ function activeLoans(){return (org.loans||[]).filter(l=>l.status!=='returned')}
+ function lentCount(itemId){return activeLoans().filter(l=>l.item_id===itemId).reduce((a,l)=>a+Number(l.quantity||0),0)}
+ function available(item){return Math.max(0,Number(item.quantity||0)-Number(item.in_repair||0)-lentCount(item.id))}
+ function itemName(id){const i=(org.wardrobe||[]).find(x=>x.id===id);return i?i.name+(i.size?' · talla '+i.size:''):'Prenda'}
+ function loanRow(l,{manager}){
+  const pending=l.status==='return_requested';
+  const who=manager?`<div class="group-meta">👤 ${h(l.member_name||memberName(l.user_id))} · desde ${h(shortDate(String(l.lent_at||'').slice(0,10)||localToday()))}</div>`:`<div class="group-meta">Desde ${h(shortDate(String(l.lent_at||'').slice(0,10)||localToday()))}</div>`;
+  let actions='';
+  if(manager)actions=`<button class="btn small" data-vm-loan-confirm="${h(l.id)}">${pending?'Confirmar devolución':'Registrar devolución'}</button>`;
+  else actions=pending?'<span class="vm-ward-status repair">Pendiente de confirmar</span>':`<button class="btn secondary small" data-vm-loan-return="${h(l.id)}">Lo he devuelto</button>`;
+  return `<div class="vm-ward ${pending?'pending':''}"><div class="vm-task-body"><strong>${h(itemName(l.item_id))}${Number(l.quantity)>1?` <small>× ${h(l.quantity)}</small>`:''}</strong>${who}${l.notes?`<p class="vm-task-notes">${h(l.notes)}</p>`:''}</div><div class="vm-task-actions">${actions}</div></div>`;
+ }
  function wardrobeMarkup(){
-  const items=org.wardrobe||[];
-  const head=`<div class="vm-org-head"><div><strong>${isManager()?'Inventario de vestuario':'Prendas que tienes tú'}</strong><div class="group-meta">${items.length} ${items.length===1?'prenda':'prendas'}${isManager()?' · '+items.filter(i=>i.status==='repair').length+' para arreglar':''}</div></div>${isManager()?'<button class="btn small" id="vmNewItem">＋ Nueva prenda</button>':''}</div>`;
-  if(!items.length)return head+`<div class="group-empty">${isManager()?'Todavía no hay prendas. Añade la primera con «Nueva prenda».':'No tienes ninguna prenda del grupo a tu nombre.'}</div>`;
+  const manager=isWardrobeManager(),me=myId();
+  if(!manager){
+   const mine=(org.loans||[]).filter(l=>String(l.user_id)===me&&l.status!=='returned');
+   const done=(org.loans||[]).filter(l=>String(l.user_id)===me&&l.status==='returned').slice(-5).reverse();
+   return `<div class="vm-org-head"><div><strong>Prendas del grupo que tienes</strong><div class="group-meta">Cuando devuelvas una prenda, pulsa «Lo he devuelto». La responsable de vestuario confirmará la devolución.</div></div></div>`+
+    (mine.length?`<div class="vm-task-list">${mine.map(l=>loanRow(l,{manager:false})).join('')}</div>`:'<div class="group-empty">No tienes ninguna prenda del grupo. 👌</div>')+
+    (done.length?`<h3 class="calendar-month">Devueltas</h3><div class="vm-task-list">${done.map(l=>`<div class="vm-ward"><div class="vm-task-body"><strong>${h(itemName(l.item_id))}</strong><div class="group-meta">Devuelta el ${h(shortDate(String(l.returned_at||'').slice(0,10)||localToday()))} · ${h(CONDITION[l.return_condition]||'')}</div></div></div>`).join('')}</div>`:'');
+  }
+  const items=org.wardrobe||[],loans=activeLoans();
+  const pending=loans.filter(l=>l.status==='return_requested'),out=loans.filter(l=>l.status==='lent');
+  const wm=String(org.settings?.wardrobe_manager?.user_id||'');
+  const adminBox=(typeof isTotalAdmin==='function'&&isTotalAdmin())?`<div class="vm-ward-admin"><label>Responsable de vestuario<select id="vmWardManager">${memberOptions(wm,'Sin responsable (solo dirección de baile y administración)')}</select></label></div>`:'';
+  const repairs=items.filter(i=>Number(i.in_repair)>0);
   const groups={};items.forEach(i=>{const c=i.category||'Sin categoría';(groups[c]=groups[c]||[]).push(i)});
-  return head+Object.keys(groups).sort((a,b)=>a.localeCompare(b,'es')).map(c=>`<h3 class="calendar-month">${h(c)}</h3><div class="vm-task-list">${groups[c].map(i=>`<div class="vm-ward ${h(i.status)}"><div class="vm-task-body"><strong>${h(i.name)}${Number(i.quantity)>1?` <small>× ${h(i.quantity)}</small>`:''}</strong><div class="group-meta">${i.size?'Talla '+h(i.size)+' · ':''}${i.holder_name||memberName(i.holder_id)?'👤 '+h(i.holder_name||memberName(i.holder_id)):'En el almacén'}</div>${i.notes?`<p class="vm-task-notes">${h(i.notes)}</p>`:''}</div><span class="vm-ward-status ${h(i.status)}">${WARDROBE_STATUS[i.status]||''}</span>${isManager()?`<div class="vm-task-actions"><button class="btn ghost small" data-vm-item-edit="${h(i.id)}">Editar</button><button class="btn ghost small" data-vm-item-del="${h(i.id)}">Eliminar</button></div>`:''}</div>`).join('')}</div>`).join('');
+  return adminBox+
+   `<div class="vm-org-head"><div><strong>Vestuario del grupo</strong><div class="group-meta">${items.reduce((a,i)=>a+Number(i.quantity||0),0)} prendas · ${(n=>n+(n===1?' prestada':' prestadas'))(out.reduce((a,l)=>a+Number(l.quantity||0),0))}${repairs.length?' · '+repairs.reduce((a,i)=>a+Number(i.in_repair||0),0)+' en arreglo':''}</div></div><button class="btn small" id="vmNewItem">＋ Nueva prenda</button></div>`+
+   (pending.length?`<h3 class="calendar-month">Devoluciones por confirmar (${pending.length})</h3><div class="vm-task-list">${pending.map(l=>loanRow(l,{manager:true})).join('')}</div>`:'')+
+   (out.length?`<details class="vm-memory-year vm-ward-group" ${pending.length?'':'open'}><summary><span>Prestado</span><small>${out.length} ${out.length===1?'préstamo':'préstamos'}</small></summary><div class="vm-task-list vm-ward-inner">${out.slice().sort((a,b)=>String(a.member_name).localeCompare(String(b.member_name),'es')).map(l=>loanRow(l,{manager:true})).join('')}</div></details>`:'')+
+   `<h3 class="calendar-month">Stock</h3>`+
+   (items.length?Object.keys(groups).sort((a,b)=>a.localeCompare(b,'es')).map(c=>`<div class="vm-ward-cat">${h(c)}</div><div class="vm-task-list">${groups[c].map(i=>{const av=available(i),lent=lentCount(i.id);return `<div class="vm-ward"><div class="vm-task-body"><strong>${h(i.name)}${i.size?` <small>talla ${h(i.size)}</small>`:''}</strong><div class="group-meta"><b class="${av?'vm-av':'vm-av none'}">${av} disponible${av===1?'':'s'}</b> de ${h(i.quantity)}${lent?` · ${lent} prestada${lent===1?'':'s'}`:''}${Number(i.in_repair)?` · ${h(i.in_repair)} en arreglo`:''}</div>${i.notes?`<p class="vm-task-notes">${h(i.notes)}</p>`:''}</div><div class="vm-task-actions"><button class="btn small" data-vm-lend="${h(i.id)}" ${av?'':'disabled'}>Prestar</button>${Number(i.in_repair)?`<button class="btn secondary small" data-vm-repaired="${h(i.id)}">Arreglada</button>`:''}<button class="btn ghost small" data-vm-item-edit="${h(i.id)}">Editar</button><button class="btn ghost small" data-vm-item-del="${h(i.id)}">Eliminar</button></div></div>`}).join('')}</div>`).join(''):'<div class="group-empty">Todavía no hay prendas. Añade la primera con «Nueva prenda».</div>');
  }
  function openItemEditor(id){
-  if(!isManager())return;
-  const i=(org.wardrobe||[]).find(x=>x.id===id)||{id:newId('item'),name:'',category:'',size:'',quantity:1,holder_id:'',status:'ok',notes:''};
+  if(!isWardrobeManager())return;
+  const i=(org.wardrobe||[]).find(x=>x.id===id)||{id:newId('item'),name:'',category:'',size:'',quantity:1,notes:''};
   const cats=[...new Set((org.wardrobe||[]).map(x=>x.category).filter(Boolean))];
-  const modal=openModal(`<div class="modal-card management-modal"><div class="modal-head"><h2>${id?'Editar prenda':'Nueva prenda'}</h2><button class="icon-btn close-modal">×</button></div><div class="management-form"><label>Prenda<input id="vmItemName" maxlength="160" value="${h(i.name)}" placeholder="Ej. Refajo rojo, chaleco, pañuelo…"></label><div class="form-row"><label>Categoría<input id="vmItemCat" list="vmItemCats" value="${h(i.category)}" placeholder="Mujer, hombre, complementos…"><datalist id="vmItemCats">${cats.map(c=>`<option value="${h(c)}">`).join('')}</datalist></label><label>Talla<input id="vmItemSize" value="${h(i.size)}"></label></div><div class="form-row"><label>Cantidad<input id="vmItemQty" type="number" min="0" value="${h(i.quantity)}"></label><label>Estado<select id="vmItemStatus">${Object.entries(WARDROBE_STATUS).map(([v,l])=>`<option value="${v}" ${i.status===v?'selected':''}>${l}</option>`).join('')}</select></label></div><label>La tiene<select id="vmItemWho">${memberOptions(i.holder_id,'En el almacén')}</select></label><label>Notas<textarea id="vmItemNotes" placeholder="Arreglos, dónde se guarda…">${h(i.notes)}</textarea></label><button class="btn" id="vmItemSave">Guardar prenda</button></div></div>`);
+  const lent=id?lentCount(id)+Number(i.in_repair||0):0;
+  const modal=openModal(`<div class="modal-card management-modal"><div class="modal-head"><h2>${id?'Editar prenda':'Nueva prenda'}</h2><button class="icon-btn close-modal">×</button></div><div class="management-form"><label>Prenda<input id="vmItemName" maxlength="160" value="${h(i.name)}" placeholder="Ej. Refajo rojo, chaleco, pañuelo…"></label><div class="form-row"><label>Categoría<input id="vmItemCat" list="vmItemCats" value="${h(i.category)}" placeholder="Mujer, hombre, complementos…"><datalist id="vmItemCats">${cats.map(c=>`<option value="${h(c)}">`).join('')}</datalist></label><label>Talla<input id="vmItemSize" value="${h(i.size)}"></label></div><label>Unidades que tiene el grupo<input id="vmItemQty" type="number" min="${lent}" value="${h(i.quantity)}"></label>${lent?`<p class="group-meta">Hay ${lent} prestadas o en arreglo: el total no puede ser menor.</p>`:''}<label>Notas<textarea id="vmItemNotes" placeholder="Dónde se guarda, cuidados…">${h(i.notes)}</textarea></label><button class="btn" id="vmItemSave">Guardar prenda</button></div></div>`);
   modal.querySelector('.close-modal').onclick=closeModal;
   modal.querySelector('#vmItemSave').onclick=async()=>{
    const name=modal.querySelector('#vmItemName').value.trim();if(!name)return alert('Escribe el nombre de la prenda.');
-   const who=modal.querySelector('#vmItemWho').value;
-   const row={id:i.id,name,category:modal.querySelector('#vmItemCat').value.trim(),size:modal.querySelector('#vmItemSize').value.trim(),quantity:Math.max(0,parseInt(modal.querySelector('#vmItemQty').value,10)||0),status:modal.querySelector('#vmItemStatus').value,holder_id:who||null,holder_name:who?memberName(who):'',notes:modal.querySelector('#vmItemNotes').value.trim(),updated_at:new Date().toISOString()};
+   const qty=Math.max(0,parseInt(modal.querySelector('#vmItemQty').value,10)||0);if(qty<lent)return alert(`No puede haber menos de ${lent} unidades: están prestadas o en arreglo.`);
+   const row={id:i.id,name,category:modal.querySelector('#vmItemCat').value.trim(),size:modal.querySelector('#vmItemSize').value.trim(),quantity:qty,notes:modal.querySelector('#vmItemNotes').value.trim(),updated_at:new Date().toISOString()};
    const btn=modal.querySelector('#vmItemSave');btn.disabled=true;btn.textContent='Guardando…';
    try{await run(cloudClient.from('wardrobe_items').upsert(row,{onConflict:'id'}));closeModal();toast('Prenda guardada');await reloadAndRender()}
    catch(e){alert('No se pudo guardar la prenda. '+sqlHint(e));btn.disabled=false;btn.textContent='Guardar prenda'}
   };
  }
  async function deleteItem(id){
-  const i=(org.wardrobe||[]).find(x=>x.id===id);if(!i||!confirm(`¿Eliminar «${i.name}» del inventario?`))return;
+  const i=(org.wardrobe||[]).find(x=>x.id===id);if(!i)return;
+  if(lentCount(id))return alert('Esta prenda tiene préstamos sin devolver. Confirma antes las devoluciones.');
+  if(!confirm(`¿Eliminar «${i.name}» del inventario? También se borrará su historial de préstamos.`))return;
   try{await run(cloudClient.from('wardrobe_items').delete().eq('id',id));await reloadAndRender();toast('Prenda eliminada')}catch(e){alert('No se pudo eliminar. '+sqlHint(e))}
+ }
+ function openLend(itemId){
+  if(!isWardrobeManager())return;
+  const i=(org.wardrobe||[]).find(x=>x.id===itemId);if(!i)return;const av=available(i);if(!av)return alert('No quedan unidades disponibles.');
+  const modal=openModal(`<div class="modal-card management-modal"><div class="modal-head"><h2>Prestar prenda</h2><button class="icon-btn close-modal">×</button></div><p class="group-meta"><b>${h(i.name)}</b>${i.size?' · talla '+h(i.size):''} · ${av} disponible${av===1?'':'s'}</p><div class="management-form"><label>¿Quién se la lleva?<select id="vmLendWho">${memberOptions('','Elige una persona')}</select></label><label>Unidades<input id="vmLendQty" type="number" min="1" max="${av}" value="1"></label><label>Notas<input id="vmLendNotes" placeholder="Ej. para la actuación del sábado"></label><button class="btn" id="vmLendSave">Prestar</button></div></div>`);
+  modal.querySelector('.close-modal').onclick=closeModal;
+  modal.querySelector('#vmLendSave').onclick=async()=>{
+   const who=modal.querySelector('#vmLendWho').value;if(!who)return alert('Elige quién se la lleva.');
+   const qty=parseInt(modal.querySelector('#vmLendQty').value,10)||0;if(qty<1||qty>av)return alert(`Puedes prestar entre 1 y ${av}.`);
+   const btn=modal.querySelector('#vmLendSave');btn.disabled=true;btn.textContent='Guardando…';
+   try{const {error}=await cloudClient.rpc('lend_wardrobe_item',{p_item:itemId,p_user:who,p_qty:qty,p_notes:modal.querySelector('#vmLendNotes').value.trim()});if(error)throw error;closeModal();toast('Préstamo registrado');await reloadAndRender()}
+   catch(e){alert('No se pudo registrar el préstamo. '+sqlHint(e));btn.disabled=false;btn.textContent='Prestar'}
+  };
+ }
+ async function requestReturn(loanId){
+  const l=(org.loans||[]).find(x=>x.id===loanId);if(!l)return;
+  if(!confirm(`¿Has devuelto «${itemName(l.item_id)}»? La responsable de vestuario lo confirmará.`))return;
+  try{const {error}=await cloudClient.rpc('request_wardrobe_return',{p_loan:loanId});if(error)throw error;l.status='return_requested';renderManagement();toast('Devolución enviada para confirmar')}
+  catch(e){alert('No se pudo avisar de la devolución. '+sqlHint(e))}
+ }
+ function openConfirmReturn(loanId){
+  if(!isWardrobeManager())return;
+  const l=(org.loans||[]).find(x=>x.id===loanId);if(!l)return;
+  const modal=openModal(`<div class="modal-card management-modal"><div class="modal-head"><h2>Confirmar devolución</h2><button class="icon-btn close-modal">×</button></div><p class="group-meta"><b>${h(itemName(l.item_id))}</b>${Number(l.quantity)>1?' × '+h(l.quantity):''} · ${h(l.member_name||memberName(l.user_id))}${l.status==='return_requested'?' · ha avisado de que la devolvió':''}</p><div class="management-form"><label>¿En qué estado vuelve?</label><div class="vm-att-buttons vm-cond">${Object.entries(CONDITION).map(([v,t],n)=>`<button class="vm-att-btn ${v==='ok'?'present':v==='repair'?'excused':'absent'} ${n===0?'active':''}" data-vm-cond="${v}">${t}</button>`).join('')}</div><label>Notas<input id="vmCondNotes" placeholder="Opcional: qué le pasa, dónde se guarda…"></label><p class="group-meta" id="vmCondHelp">Volverá al stock del grupo.</p><button class="btn" id="vmCondSave">Confirmar devolución</button></div></div>`);
+  const help={ok:'Volverá al stock del grupo.',repair:'Quedará «en arreglo» hasta que pulses «Arreglada».',lost:'Se descontará del total de prendas del grupo.'};
+  modal.querySelectorAll('[data-vm-cond]').forEach(b=>b.onclick=()=>{modal.querySelectorAll('[data-vm-cond]').forEach(x=>x.classList.remove('active'));b.classList.add('active');modal.querySelector('#vmCondHelp').textContent=help[b.dataset.vmCond]});
+  modal.querySelector('.close-modal').onclick=closeModal;
+  modal.querySelector('#vmCondSave').onclick=async()=>{
+   const cond=modal.querySelector('[data-vm-cond].active')?.dataset.vmCond||'ok';
+   const btn=modal.querySelector('#vmCondSave');btn.disabled=true;btn.textContent='Guardando…';
+   try{const {error}=await cloudClient.rpc('confirm_wardrobe_return',{p_loan:loanId,p_condition:cond,p_notes:modal.querySelector('#vmCondNotes').value.trim()});if(error)throw error;closeModal();toast(cond==='ok'?'Devuelta al stock ✓':cond==='repair'?'Devuelta · en arreglo':'Marcada como perdida');await reloadAndRender()}
+   catch(e){alert('No se pudo confirmar. '+sqlHint(e));btn.disabled=false;btn.textContent='Confirmar devolución'}
+  };
+ }
+ async function markRepaired(itemId){
+  const i=(org.wardrobe||[]).find(x=>x.id===itemId);if(!i)return;
+  const n=Number(i.in_repair||0);let qty=1;
+  if(n>1){const v=prompt(`¿Cuántas unidades de «${i.name}» están ya arregladas? (hay ${n} en arreglo)`,String(n));if(v===null)return;qty=Math.min(n,Math.max(1,parseInt(v,10)||0))}
+  try{const {error}=await cloudClient.rpc('mark_wardrobe_repaired',{p_item:itemId,p_qty:qty});if(error)throw error;toast('Vuelve a estar disponible');await reloadAndRender()}
+  catch(e){alert('No se pudo marcar como arreglada. '+sqlHint(e))}
+ }
+ async function saveWardrobeManager(userId){
+  try{await run(cloudClient.from('group_settings').upsert({key:'wardrobe_manager',value:{user_id:userId||null},updated_at:new Date().toISOString()},{onConflict:'key'}));toast(userId?'Responsable de vestuario: '+memberName(userId):'Sin responsable de vestuario');await reloadAndRender()}
+  catch(e){alert('No se pudo guardar. '+sqlHint(e))}
+ }
+
+ // ---------- Datos personales (v4.66) ----------
+ const GENDER={female:'Mujer',male:'Hombre',other:'Otro / prefiero no decirlo'};
+ const DETAILS_SNOOZE='vm_details_snooze_v466';
+ function detailsMissing(){const d=org.myDetails;return Boolean(d&&(!String(d.first_name||'').trim()||!String(d.last_name||'').trim()||!d.gender||!String(d.phone||'').trim()))}
+ function maybeAskDetails(){
+  try{
+   if(!detailsMissing()||vmIsPerformanceActive()||isGuest()||document.querySelector('.modal.generic-modal'))return;
+   const until=Number(localStorage.getItem(DETAILS_SNOOZE)||0);if(until>Date.now())return;
+   openDetailsForm(true);
+  }catch(e){console.warn('Datos personales',e)}
+ }
+ function openDetailsForm(first){
+  const d=org.myDetails||{};const split=String(memberState.profile?.full_name||'').trim().split(/\s+/);
+  const fn=d.first_name||(d.last_name?'':split[0]||''),ln=d.last_name||(d.first_name?'':split.slice(1).join(' '));
+  const modal=openModal(`<div class="modal-card management-modal"><div class="modal-head"><h2>${first?'Completa tus datos':'Mis datos'}</h2>${first?'':'<button class="icon-btn close-modal">×</button>'}</div>${first?'<p class="group-meta">Los usamos para identificar a cada persona en vestuario, tareas y asistencia. El teléfono y el género solo los ven la dirección y la responsable de vestuario.</p>':''}<div class="management-form"><div class="form-row"><label>Nombre<input id="vmDetFirst" autocomplete="given-name" maxlength="60" value="${h(fn)}"></label><label>Apellidos<input id="vmDetLast" autocomplete="family-name" maxlength="80" value="${h(ln)}"></label></div><label>Género<select id="vmDetGender"><option value="">Elige una opción</option>${Object.entries(GENDER).map(([v,t])=>`<option value="${v}" ${d.gender===v?'selected':''}>${t}</option>`).join('')}</select></label><label>Teléfono<input id="vmDetPhone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" value="${h(d.phone||'')}" placeholder="600 000 000"></label><button class="btn" id="vmDetSave">Guardar mis datos</button>${first?'<button class="btn ghost" id="vmDetLater">Más tarde</button>':''}</div></div>`);
+  const close=modal.querySelector('.close-modal');if(close)close.onclick=closeModal;
+  const later=modal.querySelector('#vmDetLater');if(later)later.onclick=()=>{try{localStorage.setItem(DETAILS_SNOOZE,String(Date.now()+12*3600000))}catch(e){}closeModal()};
+  modal.querySelector('#vmDetSave').onclick=async()=>{
+   const first_=modal.querySelector('#vmDetFirst').value.trim(),last=modal.querySelector('#vmDetLast').value.trim(),gender=modal.querySelector('#vmDetGender').value,phone=modal.querySelector('#vmDetPhone').value.trim();
+   if(first_.length<2)return alert('Escribe tu nombre.');if(last.length<2)return alert('Escribe tus apellidos.');if(!gender)return alert('Elige el género.');
+   if(!/^[0-9 +().-]{9,20}$/.test(phone))return alert('Escribe un teléfono válido (al menos 9 cifras).');
+   const btn=modal.querySelector('#vmDetSave');btn.disabled=true;btn.textContent='Guardando…';
+   try{const {error}=await cloudClient.rpc('update_my_details',{p_first:first_,p_last:last,p_gender:gender,p_phone:phone});if(error)throw error;
+    org.myDetails={first_name:first_,last_name:last,gender,phone};if(memberState.profile)memberState.profile.full_name=first_+' '+last;
+    try{localStorage.removeItem(DETAILS_SNOOZE)}catch(e){}closeModal();toast('Datos guardados ✓');await reloadAndRender()}
+   catch(e){alert('No se pudieron guardar tus datos. '+sqlHint(e));btn.disabled=false;btn.textContent='Guardar mis datos'}
+  };
  }
 
  // ---------- Asistencia a ensayos ----------
@@ -2221,6 +2334,10 @@ window.addEventListener('beforeunload',()=>{
   const today=bd.filter(b=>b.n===0),soon=bd.filter(b=>b.n>0);
   if(today.length)parts.push(`<div class="vm-banner">🎂 <span><b>¡Hoy cumple${today.length>1?'n':''} años ${h(today.map(b=>b.name).join(' y '))}!</b></span></div>`);
   if(soon.length)parts.push(`<div class="vm-banner soft">🎂 <span>Esta semana: ${soon.map(b=>`<b>${h(b.name)}</b> (${h(shortDate(b.date))})`).join(', ')}</span></div>`);
+  if(org.loans!==null){
+   if(isWardrobeManager()){const p=(org.loans||[]).filter(l=>l.status==='return_requested').length;if(p)parts.push(`<button class="vm-banner task" data-vm-goto-wardrobe>👗 <span><b>${p} ${p===1?'devolución':'devoluciones'} de vestuario</b> por confirmar</span><span aria-hidden="true">›</span></button>`)}
+   else{const mineL=(org.loans||[]).filter(l=>String(l.user_id)===myId()&&l.status==='lent');if(mineL.length)parts.push(`<button class="vm-banner soft task" data-vm-goto-wardrobe>👗 <span>Tienes <b>${mineL.reduce((a,l)=>a+Number(l.quantity||0),0)} ${mineL.length===1&&Number(mineL[0].quantity)===1?'prenda':'prendas'} del grupo</b></span><span aria-hidden="true">›</span></button>`)}
+  }
   const mine=(org.tasks||[]).filter(t=>String(t.assignee_id||'')===myId()&&t.status!=='done');
   if(mine.length)parts.push(`<button class="vm-banner task" data-vm-goto-tasks>📋 <span>Tienes <b>${mine.length} ${mine.length===1?'tarea pendiente':'tareas pendientes'}</b>${mine.some(t=>t.due_date&&daysUntil(t.due_date)<0)?' · alguna vencida':''}</span><span aria-hidden="true">›</span></button>`);
   return parts.length?`<div class="vm-banners">${parts.join('')}</div>`:'';
@@ -2234,6 +2351,7 @@ window.addEventListener('beforeunload',()=>{
    const me=(org.members||[]).find(m=>String(m.user_id)===myId());
    form.insertAdjacentHTML('beforeend',`<div class="vm-birthday-box"><label>Cumpleaños (opcional)<input id="vmBirthday" type="date" value="${h(me?.my_birthday||'')}"></label><p class="group-meta">El grupo solo verá el día y el mes, nunca el año.</p><button class="btn secondary" id="vmBirthdaySave">Guardar cumpleaños</button></div>`);
    form.querySelector('#vmBirthdaySave').onclick=async()=>{const v=form.querySelector('#vmBirthday').value||null;try{const {error}=await cloudClient.rpc('update_my_birthday',{new_birthday:v});if(error)throw error;toast(v?'Cumpleaños guardado 🎂':'Cumpleaños borrado');await loadOrg(true)}catch(e){alert('No se pudo guardar. '+sqlHint(e))}};
+   if(org.myDetails!==null){const d=org.myDetails||{};form.insertAdjacentHTML('afterbegin',`<div class="vm-details-box"><div><strong>${h([d.first_name,d.last_name].filter(Boolean).join(' ')||'Faltan tus datos')}</strong><div class="group-meta">${h([GENDER[d.gender],d.phone].filter(Boolean).join(' · ')||'Nombre, apellidos, género y teléfono')}</div></div><button class="btn secondary small" id="vmDetEdit">Editar mis datos</button></div>`);form.querySelector('#vmDetEdit').onclick=()=>{closeModal();openDetailsForm(false)};const gp=form.querySelector('#gpName');if(gp&&gp.closest('label'))gp.closest('label').hidden=true;const sg=form.querySelector('#saveGp');if(sg)sg.hidden=true}
   }catch(e){console.warn('Cumpleaños',e)}
   return out;
  };
@@ -2296,7 +2414,7 @@ window.addEventListener('beforeunload',()=>{
    const shell=document.querySelector('#app .group-shell'),tabs=shell?.querySelector('.group-tabs');if(!shell||!tabs)return out;
    if(groupState.tab==='tasks'||groupState.tab==='wardrobe'){
     while(tabs.nextSibling)tabs.nextSibling.remove();
-    tabs.insertAdjacentHTML('afterend',`<div class="vm-org-panel">${groupState.tab==='tasks'?(org.tasks===null?'<div class="group-empty">Las tareas todavía no están activadas.</div>':tasksMarkup()):(org.wardrobe===null?'<div class="group-empty">El vestuario todavía no está activado.</div>':wardrobeMarkup())}</div>`);
+    tabs.insertAdjacentHTML('afterend',`<div class="vm-org-panel">${groupState.tab==='tasks'?(org.tasks===null?'<div class="group-empty">Las tareas todavía no están activadas.</div>':tasksMarkup()):(org.wardrobe===null||org.loans===null?'<div class="group-empty">El vestuario todavía no está activado.</div>':wardrobeMarkup())}</div>`);
    }
    if(groupState.tab==='upcoming'&&signedIn()){const html=bannersMarkup();if(html){const next=shell.querySelector('.vm-next-card');(next||tabs).insertAdjacentHTML(next?'afterend':'beforebegin',html)}
     const nextOpen=shell.querySelector('.vm-next-card [data-vm-open^="performance:"]');if(nextOpen){const pid=nextOpen.dataset.vmOpen.slice(12);const p=(state.performances||[]).find(x=>String(x.id)===pid);if(p&&(routeHas(p)||(isManager()&&org.members!==null)))nextOpen.insertAdjacentHTML('afterend',`<button class="btn ghost small" data-vm-route-open="${h(pid)}">🧭 Hoja de ruta</button>`)}}
@@ -2308,6 +2426,12 @@ window.addEventListener('beforeunload',()=>{
    root.querySelectorAll('[data-vm-task-del]').forEach(b=>b.onclick=()=>deleteTask(b.dataset.vmTaskDel));
    root.querySelectorAll('[data-vm-item-edit]').forEach(b=>b.onclick=()=>openItemEditor(b.dataset.vmItemEdit));
    root.querySelectorAll('[data-vm-item-del]').forEach(b=>b.onclick=()=>deleteItem(b.dataset.vmItemDel));
+   root.querySelectorAll('[data-vm-lend]').forEach(b=>b.onclick=()=>openLend(b.dataset.vmLend));
+   root.querySelectorAll('[data-vm-repaired]').forEach(b=>b.onclick=()=>markRepaired(b.dataset.vmRepaired));
+   root.querySelectorAll('[data-vm-loan-return]').forEach(b=>b.onclick=()=>requestReturn(b.dataset.vmLoanReturn));
+   root.querySelectorAll('[data-vm-loan-confirm]').forEach(b=>b.onclick=()=>openConfirmReturn(b.dataset.vmLoanConfirm));
+   root.querySelectorAll('[data-vm-goto-wardrobe]').forEach(b=>b.onclick=()=>{groupState.tab='wardrobe';renderManagement()});
+   const wmSel=root.querySelector('#vmWardManager');if(wmSel)wmSel.onchange=()=>saveWardrobeManager(wmSel.value);
    root.querySelectorAll('[data-vm-attendance]').forEach(b=>b.onclick=()=>openAttendance(b.dataset.vmAttendance));
    root.querySelectorAll('[data-vm-route-open]').forEach(b=>b.onclick=()=>openRoute(b.dataset.vmRouteOpen));
    root.querySelectorAll('[data-vm-goto-tasks]').forEach(b=>b.onclick=()=>{groupState.tab='tasks';org.taskFilter='mine';renderManagement()});
