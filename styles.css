@@ -669,3 +669,11 @@ body.search-typing .search-wrap{position:relative;z-index:20}
 .vm-av{color:#1f6b3a}.vm-av.none{color:#9b1c2c}
 .vm-cond{flex-wrap:wrap}
 .vm-details-box{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;background:var(--paper);border:1px solid var(--line)}
+
+/* v4.68 · WhatsApp y calendario */
+.btn.vm-wa{background:#e8f8ee;color:#127a42;border-color:#bfe8cf}
+.dark .btn.vm-wa{background:#123522;color:#9fe3bb;border-color:#1e5a38}
+.vm-card-cal{flex-wrap:wrap;gap:6px}
+.vm-cal-options{display:grid;gap:10px;margin:14px 0 6px}
+.vm-cal-options .btn{display:flex;justify-content:center;align-items:center;text-decoration:none;min-height:46px}
+.vm-cal-help{margin-top:8px}

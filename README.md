@@ -1,6 +1,6 @@
-# Cancionero Valdemedel v4.67
+# Cancionero Valdemedel v4.68
 
-Actualización: los invitados pueden ver (sin editar) la hoja de ruta de su actuación desde la invitación.
+Actualización: botones para avisar por WhatsApp de ensayos, encuestas, actuaciones y tareas, y «Añadir al calendario» que funciona en iPhone/iPad (servidor /api/ics), Google Calendar y descarga .ics.
 
 # Cancionero Valdemedel v4.40
 

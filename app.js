@@ -1319,7 +1319,7 @@ const refreshCloudPerformancesV429=refreshCloudPerformances;refreshCloudPerforma
    v4.32 · Acceso obligatorio con excepción segura para invitados. Sin sesión aprobada no se
    renderiza ni se muestra ninguna sección de la aplicación.
    ========================================================== */
-const VM_AUTH_GATE_VERSION='4.67';
+const VM_AUTH_GATE_VERSION='4.68';
 function vmGateEl(id){return document.getElementById(id)}
 function vmGateSetScreen(screen,message=''){
  const gate=vmGateEl('authGate'); if(!gate)return;
@@ -1941,6 +1941,7 @@ window.addEventListener('beforeunload',()=>{
  function icsCalendar(items){return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Grupo Folklorico Valdemedel//Cancionero//ES','CALSCALE:GREGORIAN','METHOD:PUBLISH',...items.map(icsEvent),'END:VCALENDAR'].join('\r\n')+'\r\n'}
  function isAppleMobile(){return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)}
  function addToCalendar(items,filename){
+  if(typeof window.vmOpenCalendarChooser==='function')return window.vmOpenCalendarChooser(items,filename);
   if(!items.length)return toast('No hay fechas para añadir al calendario.');
   const text=icsCalendar(items);
   const a=document.createElement('a');
@@ -2455,4 +2456,116 @@ window.addEventListener('beforeunload',()=>{
   return out;
  };
  window.__vmOrgV465=org;
+})();
+
+/* ==========================================================
+   v4.68 · Avisos por WhatsApp y «Añadir al calendario» que funciona en iPhone/iPad
+   - Calendario: el archivo .ics se sirve desde /api/ics (iOS solo lo abre desde
+     una dirección web real), con alternativas Google Calendar y descarga.
+   - WhatsApp: la dirección puede avisar de ensayos, encuestas, actuaciones y
+     tareas; abre WhatsApp con el mensaje escrito para elegir el grupo o la persona.
+   Sin temporizadores ni peticiones propias; fuera del modo actuación y del invitado.
+   ========================================================== */
+(function vmAvisosV468(){
+ const APP_URL='https://cancionero-valdemedel.vercel.app';
+ const isGuest=()=>Boolean(guestAccess&&guestAccess.token);
+ const canNotify=()=>typeof canManageContent==='function'&&canManageContent();
+ const h=v=>esc(v==null?'':String(v));
+ const pad=n=>String(n).padStart(2,'0');
+ function b64url(s){const bytes=new TextEncoder().encode(s);let bin='';bytes.forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+ function isApple(){return /iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)&&!/Android/.test(navigator.userAgent)}
+ function prettyDate(date,time){try{return dateHuman(date,time)}catch(e){return date+(time?' · '+time:'')}}
+
+ // ---------- Calendario ----------
+ function googleUrl(i){
+  const d=i.date.replace(/-/g,'');let dates;
+  if(i.time){const [hh,mm]=i.time.split(':').map(Number);const s=new Date(i.date+'T'+i.time+':00'),e=new Date(s.getTime()+2*3600000);
+   const f=x=>x.getFullYear()+pad(x.getMonth()+1)+pad(x.getDate())+'T'+pad(x.getHours())+pad(x.getMinutes())+'00';dates=f(s)+'/'+f(e)}
+  else{const n=new Date(i.date+'T12:00:00');n.setDate(n.getDate()+1);dates=d+'/'+n.getFullYear()+pad(n.getMonth()+1)+pad(n.getDate())}
+  const q=new URLSearchParams({action:'TEMPLATE',text:(i.kind==='performance'?'Actuación · ':i.kind==='rehearsal'?'Ensayo · ':i.kind==='poll'?'Encuesta · ':'')+i.title,dates,details:'Grupo Folklórico Valdemedel · '+APP_URL,ctz:'Europe/Madrid'});
+  if(i.place)q.set('location',i.place);
+  return 'https://calendar.google.com/calendar/render?'+q.toString();
+ }
+ function icsBlobUrl(items){
+  const lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Grupo Folklorico Valdemedel//Cancionero//ES'];
+  const t=s=>String(s||'').replace(/\\/g,'\\\\').replace(/\r?\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;');
+  items.forEach((i,n)=>{lines.push('BEGIN:VEVENT','UID:'+i.kind+'-'+i.id+'-'+n+'@cancionero-valdemedel','DTSTAMP:'+new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+Z$/,'Z'));
+   if(i.time){const s=new Date(i.date+'T'+i.time+':00'),e=new Date(s.getTime()+2*3600000),f=x=>x.getFullYear()+pad(x.getMonth()+1)+pad(x.getDate())+'T'+pad(x.getHours())+pad(x.getMinutes())+'00';lines.push('DTSTART:'+f(s),'DTEND:'+f(e))}
+   else{const nx=new Date(i.date+'T12:00:00');nx.setDate(nx.getDate()+1);lines.push('DTSTART;VALUE=DATE:'+i.date.replace(/-/g,''),'DTEND;VALUE=DATE:'+nx.getFullYear()+pad(nx.getMonth()+1)+pad(nx.getDate()))}
+   lines.push('SUMMARY:'+t(i.title));if(i.place)lines.push('LOCATION:'+t(i.place));lines.push('END:VEVENT')});
+  lines.push('END:VCALENDAR');
+  return URL.createObjectURL(new Blob([lines.join('\r\n')+'\r\n'],{type:'text/calendar;charset=utf-8'}));
+ }
+ window.vmOpenCalendarChooser=function(items,filename){
+  items=(items||[]).filter(i=>i&&i.date).slice(0,60);
+  if(!items.length)return toast('No hay fechas para añadir al calendario.');
+  const one=items.length===1?items[0]:null;
+  const payload=items.map(i=>({k:i.kind,t:i.title,d:i.date,h:i.time||'',p:i.place||''}));
+  const appleUrl=location.origin+'/api/ics?d='+b64url(JSON.stringify(payload));
+  const blob=icsBlobUrl(items);
+  const apple=`<a class="btn ${isApple()?'':'secondary'} vm-cal-opt" href="${h(appleUrl)}" target="_blank" rel="noopener">🍎 Calendario del iPhone / iPad</a>`;
+  const google=one?`<a class="btn ${isApple()?'secondary':''} vm-cal-opt" href="${h(googleUrl(one))}" target="_blank" rel="noopener">📅 Google Calendar</a>`:'';
+  const file=`<a class="btn ghost vm-cal-opt" href="${h(blob)}" download="${h(filename||'valdemedel.ics')}">⬇ Descargar archivo .ics</a>`;
+  const modal=openModal(`<div class="modal-card management-modal vm-cal-modal"><div class="modal-head"><h2>Añadir al calendario</h2><button class="icon-btn close-modal">×</button></div><p class="group-meta">${one?`<b>${h(one.title)}</b> · ${h(prettyDate(one.date,one.time))}${one.place?' · '+h(one.place):''}`:`${items.length} fechas próximas del grupo`}</p><div class="vm-cal-options">${isApple()?apple+google:google+apple}${file}</div><p class="group-meta vm-cal-help">${isApple()?'En iPhone o iPad se abrirá una ventana con <b>«Añadir»</b> o <b>«Añadir todo»</b>.':one?'En Android usa Google Calendar.':'En Android o en el ordenador, descarga el archivo y ábrelo con tu calendario.'}</p></div>`);
+  modal.querySelector('.close-modal').onclick=closeModal;
+  modal.querySelectorAll('.vm-cal-opt').forEach(a=>a.addEventListener('click',()=>setTimeout(closeModal,300)));
+  setTimeout(()=>URL.revokeObjectURL(blob),10*60000);
+ };
+
+ // ---------- WhatsApp ----------
+ function normPhone(p){let d=String(p||'').replace(/[^\d+]/g,'');if(d.startsWith('+'))d=d.slice(1);else if(d.startsWith('00'))d=d.slice(2);else if(/^[6789]\d{8}$/.test(d))d='34'+d;return /^\d{10,15}$/.test(d)?d:''}
+ function openWhatsApp(text,phone){const p=normPhone(phone);window.open((p?'https://wa.me/'+p:'https://wa.me/')+'?text='+encodeURIComponent(text),'_blank','noopener')}
+ function eventMessage(e){
+  const when=prettyDate(e.event_date,e.event_time),place=e.place?'\n📍 '+e.place:'',det=e.details?'\n\n'+e.details:'',clo=e.clothing?'\n👗 Vestuario: '+e.clothing:'';
+  if(e.kind==='rehearsal')return `🎶 *Ensayo* — ${e.title}\n📅 ${when}${place}${clo}${det}\n\nMíralo en la app del grupo:\n${APP_URL}`;
+  return `🗳️ *Encuesta de actuación* — ${e.title}\n📅 ${when}${place}${clo}${det}\n\nEntra en la app y responde si puedes ir:\n${APP_URL}`;
+ }
+ function performanceMessage(p){
+  const n=(p.songs||[]).length;
+  return `⭐ *Actuación* — ${p.name||'Actuación'}\n📅 ${p.date?prettyDate(p.date):'Fecha por confirmar'}${p.place?'\n📍 '+p.place:''}${n?'\n🎼 '+n+(n===1?' pieza':' piezas')+' en el repertorio':''}\n\nRepertorio, hoja de ruta y modo actuación en la app:\n${APP_URL}`;
+ }
+ function taskTarget(t){const org=window.__vmOrgV465||{};const m=(org.members||[]).find(x=>String(x.user_id)===String(t.assignee_id||''));return m||null}
+ function taskMessage(t){
+  const m=taskTarget(t),first=(m?.first_name||String(m?.full_name||t.assignee_name||'').split(' ')[0]||'').trim();
+  const due=t.due_date?'\n📅 Fecha límite: '+prettyDate(t.due_date):'',notes=t.notes?'\n'+t.notes:'';
+  return `${first?'Hola '+first+', tienes':'Hay'} una tarea del grupo:\n✅ *${t.title}*${due}${notes}\n\nMárcala como hecha en la app cuando la termines:\n${APP_URL}`;
+ }
+ function sendFor(key){
+  const [kind,...rest]=String(key).split(':');const id=rest.join(':');
+  if(kind==='event'){const e=(groupState.events||[]).find(x=>String(x.id)===id);if(e)openWhatsApp(eventMessage(e))}
+  else if(kind==='perf'){const p=(state.performances||[]).find(x=>String(x.id)===id);if(p)openWhatsApp(performanceMessage(p))}
+  else if(kind==='task'){const t=((window.__vmOrgV465||{}).tasks||[]).find(x=>String(x.id)===id);if(t)openWhatsApp(taskMessage(t),taskTarget(t)?.phone)}
+ }
+ // Un único controlador para todos los botones de WhatsApp (delegación, fase burbuja).
+ document.addEventListener('click',ev=>{const b=ev.target.closest?.('[data-vm-wa]');if(!b)return;ev.preventDefault();sendFor(b.dataset.vmWa)});
+ const waBtn=(key,label='📲 WhatsApp')=>`<button class="btn ghost small vm-wa" data-vm-wa="${h(key)}">${h(label)}</button>`;
+
+ const previousEventCard=eventCard;
+ eventCard=function(e){
+  const html=previousEventCard.apply(this,arguments);
+  if(!canNotify()||!e)return html;
+  const btn=waBtn('event:'+e.id,'📲 Avisar por WhatsApp');
+  if(html.includes('<div class="vm-card-cal">'))return html.replace('<div class="vm-card-cal">','<div class="vm-card-cal">'+btn);
+  const i=html.lastIndexOf('</article>');return i>=0?html.slice(0,i)+`<div class="vm-card-cal">${btn}</div>`+html.slice(i):html;
+ };
+ const previousRenderPerformances=renderPerformances;
+ renderPerformances=function(){
+  const out=previousRenderPerformances.apply(this,arguments);
+  if(isGuest()||state.view!=='performances'||!canNotify())return out;
+  try{document.querySelectorAll('#app [data-load]').forEach(b=>{if(b.parentElement.querySelector('[data-vm-wa]'))return;b.parentElement.insertAdjacentHTML('beforeend',waBtn('perf:'+b.dataset.load,'📲 Avisar'))})}catch(e){console.warn('WhatsApp · actuaciones',e)}
+  return out;
+ };
+ const previousRenderManagement=renderManagement;
+ renderManagement=function(){
+  const out=previousRenderManagement.apply(this,arguments);
+  if(isGuest()||state.view!=='management'||!canNotify())return out;
+  try{
+   document.querySelectorAll('#app [data-vm-task-edit]').forEach(b=>{
+    const actions=b.parentElement;if(actions.querySelector('[data-vm-wa]'))return;
+    const t=((window.__vmOrgV465||{}).tasks||[]).find(x=>String(x.id)===String(b.dataset.vmTaskEdit));if(!t||t.status==='done')return;
+    const m=taskTarget(t);b.insertAdjacentHTML('beforebegin',waBtn('task:'+t.id,m&&normPhone(m.phone)?'📲 Avisar a '+(m.first_name||String(m.full_name||'').split(' ')[0]):'📲 WhatsApp'));
+   });
+  }catch(e){console.warn('WhatsApp · tareas',e)}
+  return out;
+ };
 })();
