@@ -1,6 +1,6 @@
-# Cancionero Valdemedel v4.64
+# Cancionero Valdemedel v4.65
 
-Actualización: privacidad. El enlace de invitado lee solo su actuación (get_guest_performance) y, tras ejecutar supabase-v464-privacidad.sql, actuaciones, eventos y avisos solo los ven los miembros aprobados.
+Actualización: tareas con responsable, asistencia a ensayos, vestuario, hoja de ruta de cada actuación, cumpleaños y aniversario (requiere supabase-v464-privacidad.sql y supabase-v465-organizacion.sql).
 
 # Cancionero Valdemedel v4.40
 

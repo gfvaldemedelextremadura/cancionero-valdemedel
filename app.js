@@ -1319,7 +1319,7 @@ const refreshCloudPerformancesV429=refreshCloudPerformances;refreshCloudPerforma
    v4.32 · Acceso obligatorio con excepción segura para invitados. Sin sesión aprobada no se
    renderiza ni se muestra ninguna sección de la aplicación.
    ========================================================== */
-const VM_AUTH_GATE_VERSION='4.64';
+const VM_AUTH_GATE_VERSION='4.65';
 function vmGateEl(id){return document.getElementById(id)}
 function vmGateSetScreen(screen,message=''){
  const gate=vmGateEl('authGate'); if(!gate)return;
@@ -2025,4 +2025,297 @@ window.addEventListener('beforeunload',()=>{
   try{const html=memoryMarkup();if(html&&!document.querySelector('#app .vm-memory'))document.querySelector('#app').insertAdjacentHTML('beforeend',html)}catch(e){console.warn('Memoria del grupo',e)}
   return out;
  };
+})();
+
+/* ==========================================================
+   v4.65 · Organización del día a día (fase C)
+   Tareas, asistencia a ensayos, vestuario, hoja de ruta de cada
+   actuación, cumpleaños y aniversario del grupo.
+   Requiere supabase-v465-organizacion.sql. Si las tablas no existen,
+   cada función se oculta sola y el resto de la app sigue igual.
+   No usa temporizadores propios ni actúa durante el modo actuación.
+   ========================================================== */
+(function vmOrganizacionV465(){
+ const isGuest=()=>Boolean(guestAccess&&guestAccess.token);
+ const org={tasks:null,attendance:null,wardrobe:null,members:null,settings:null,lastLoad:0,loading:false,taskFilter:'mine'};
+ const isManager=()=>typeof canManageContent==='function'&&canManageContent();
+ const signedIn=()=>typeof isMemberSignedIn==='function'&&isMemberSignedIn();
+ const myId=()=>String(currentUser()?.id||'');
+ const h=v=>groupEsc(v==null?'':v);
+ function newId(prefix){return prefix+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7)}
+ function localToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+ function daysUntil(date){return Math.round((new Date(date+'T12:00:00')-new Date(localToday()+'T12:00:00'))/86400000)}
+ function shortDate(date){return new Date(date+'T12:00:00').toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'})}
+ function isMissing(err){const t=[err?.message,err?.details?.message,err?.details?.code,err?.code,err?.details?.hint].join(' ');return err?.status===404||/does not exist|schema cache|PGRST20[0-9]|42P01|42883|42703|Could not find/i.test(t)}
+ function sqlHint(err){return isMissing(err)?'Falta ejecutar en Supabase el archivo supabase-v465-organizacion.sql.':(err?.message||'Error desconocido')}
+ async function run(promise){const {data,error}=await promise;if(error)throw error;return data}
+ function memberName(id){const m=(org.members||[]).find(x=>String(x.user_id)===String(id));return m?m.full_name:''}
+ function memberOptions(selected,emptyLabel){return `<option value="">${h(emptyLabel)}</option>`+(org.members||[]).map(m=>`<option value="${h(m.user_id)}" ${String(selected||'')===String(m.user_id)?'selected':''}>${h(m.full_name)}</option>`).join('')}
+
+ // ---------- Carga (junto a la de Grupo, como mucho cada 2 minutos) ----------
+ async function loadOrg(force){
+  if(!CLOUD_ENABLED||!cloudClient||!signedIn()||isGuest()||org.loading)return;
+  if(!force&&Date.now()-org.lastLoad<120000)return;
+  org.loading=true;
+  const take=async(key,fn)=>{try{org[key]=await fn()}catch(e){if(isMissing(e))org[key]=null;else console.warn('Organización · '+key,e)}};
+  try{
+   await Promise.all([
+    take('tasks',()=>run(cloudClient.from('group_tasks').select('*').order('due_date',{ascending:true,nullsFirst:false}))),
+    take('attendance',()=>run(cloudClient.from('event_attendance').select('*'))),
+    take('wardrobe',()=>run(cloudClient.from('wardrobe_items').select('*').order('name',{ascending:true}))),
+    take('members',async()=>{const {data,error}=await cloudClient.rpc('list_group_members',{});if(error)throw error;return Array.isArray(data)?data:[]}),
+    take('settings',async()=>{const rows=await run(cloudClient.from('group_settings').select('*'));return Object.fromEntries((rows||[]).map(r=>[r.key,r.value]))})
+   ]);
+   org.lastLoad=Date.now();
+  }finally{org.loading=false}
+ }
+ const previousLoadGroupData=loadGroupData;
+ loadGroupData=async function(opts={}){
+  const out=await previousLoadGroupData.apply(this,arguments);
+  if(isGuest())return out;
+  try{await loadOrg(!opts.silent)}catch(e){console.warn('Organización',e)}
+  if(state.view==='management'&&!vmIsPerformanceActive())renderManagement();
+  return out;
+ };
+ async function reloadAndRender(){await loadOrg(true);if(state.view==='management')renderManagement();if(state.view==='performances')renderPerformances()}
+
+ // ---------- Pestañas nuevas en Grupo ----------
+ const previousTabs=groupTabsMarkup;
+ groupTabsMarkup=function(){
+  let html=previousTabs.apply(this,arguments);
+  const extra=[];
+  if(org.tasks!==null&&signedIn())extra.push(['tasks','Tareas']);
+  if(org.wardrobe!==null&&signedIn())extra.push(['wardrobe','Vestuario']);
+  if(!extra.length)return html;
+  const buttons=extra.map(([id,label])=>`<button data-group-tab="${id}" class="${groupState.tab===id?'active':''}">${label}</button>`).join('');
+  const i=html.lastIndexOf('</div>');
+  return i>=0?html.slice(0,i)+buttons+html.slice(i):html;
+ };
+
+ // ---------- Tareas ----------
+ function dueLabel(t){if(!t.due_date)return '';const n=daysUntil(t.due_date);if(t.status==='done')return shortDate(t.due_date);if(n<0)return 'Vencida · '+shortDate(t.due_date);if(n===0)return 'Hoy';if(n===1)return 'Mañana';return 'En '+n+' días · '+shortDate(t.due_date)}
+ function tasksMarkup(){
+  const all=org.tasks||[],me=myId(),f=org.taskFilter;
+  const mine=all.filter(t=>String(t.assignee_id||'')===me&&t.status!=='done');
+  const pending=all.filter(t=>t.status!=='done'),done=all.filter(t=>t.status==='done');
+  const list=f==='mine'?mine:f==='done'?done.slice().sort((a,b)=>String(b.done_at||'').localeCompare(String(a.done_at||''))):pending;
+  const chip=(id,label,n)=>`<button class="chip ${f===id?'active':''}" data-vm-task-filter="${id}">${label} <b>${n}</b></button>`;
+  return `<div class="vm-org-head"><div class="chips">${chip('mine','Mías',mine.length)}${chip('pending','Pendientes',pending.length)}${chip('done','Hechas',done.length)}</div>${isManager()?'<button class="btn small" id="vmNewTask">＋ Nueva tarea</button>':''}</div>`+
+   (list.length?`<div class="vm-task-list">${list.map(t=>{const canToggle=isManager()||String(t.assignee_id||'')===me;const overdue=t.status!=='done'&&t.due_date&&daysUntil(t.due_date)<0;return `<div class="vm-task ${t.status==='done'?'done':''} ${overdue?'overdue':''}"><button class="vm-task-check" data-vm-task-toggle="${h(t.id)}" ${canToggle?'':'disabled'} aria-label="${t.status==='done'?'Marcar como pendiente':'Marcar como hecha'}">${t.status==='done'?'✓':''}</button><div class="vm-task-body"><strong>${h(t.title)}</strong><div class="group-meta">${t.assignee_name||memberName(t.assignee_id)?'👤 '+h(t.assignee_name||memberName(t.assignee_id)):'Sin responsable'}${t.due_date?' · 📅 '+h(dueLabel(t)):''}</div>${t.notes?`<p class="vm-task-notes">${h(t.notes)}</p>`:''}</div>${isManager()?`<div class="vm-task-actions"><button class="btn ghost small" data-vm-task-edit="${h(t.id)}">Editar</button><button class="btn ghost small" data-vm-task-del="${h(t.id)}">Eliminar</button></div>`:''}</div>`}).join('')}</div>`:`<div class="group-empty">${f==='mine'?'No tienes tareas pendientes. 🎉':f==='done'?'Todavía no hay tareas hechas.':'No hay tareas pendientes.'}</div>`);
+ }
+ function openTaskEditor(id){
+  if(!isManager())return;
+  const t=(org.tasks||[]).find(x=>x.id===id)||{id:newId('task'),title:'',notes:'',due_date:'',assignee_id:'',status:'pending'};
+  const modal=openModal(`<div class="modal-card management-modal"><div class="modal-head"><h2>${id?'Editar tarea':'Nueva tarea'}</h2><button class="icon-btn close-modal">×</button></div><div class="management-form"><label>Qué hay que hacer<input id="vmTaskTitle" maxlength="200" value="${h(t.title)}" placeholder="Ej. Recoger los trajes del tinte"></label><div class="form-row"><label>Responsable<select id="vmTaskWho">${memberOptions(t.assignee_id,'Sin responsable')}</select></label><label>Fecha límite<input id="vmTaskDue" type="date" value="${h(t.due_date||'')}"></label></div><label>Notas<textarea id="vmTaskNotes" placeholder="Detalles, teléfonos, dónde está…">${h(t.notes)}</textarea></label><button class="btn" id="vmTaskSave">Guardar tarea</button></div></div>`);
+  modal.querySelector('.close-modal').onclick=closeModal;
+  modal.querySelector('#vmTaskSave').onclick=async()=>{
+   const title=modal.querySelector('#vmTaskTitle').value.trim();if(!title)return alert('Escribe qué hay que hacer.');
+   const who=modal.querySelector('#vmTaskWho').value;
+   const row={id:t.id,title,notes:modal.querySelector('#vmTaskNotes').value.trim(),due_date:modal.querySelector('#vmTaskDue').value||null,assignee_id:who||null,assignee_name:who?memberName(who):'',status:t.status||'pending',updated_at:new Date().toISOString()};
+   const btn=modal.querySelector('#vmTaskSave');btn.disabled=true;btn.textContent='Guardando…';
+   try{await run(cloudClient.from('group_tasks').upsert(row,{onConflict:'id'}));closeModal();toast('Tarea guardada');await reloadAndRender()}
+   catch(e){alert('No se pudo guardar la tarea. '+sqlHint(e));btn.disabled=false;btn.textContent='Guardar tarea'}
+  };
+ }
+ async function toggleTask(id){
+  const t=(org.tasks||[]).find(x=>x.id===id);if(!t)return;
+  try{const {error}=await cloudClient.rpc('set_task_status',{p_id:id,p_done:t.status!=='done'});if(error)throw error;t.status=t.status==='done'?'pending':'done';t.done_at=t.status==='done'?new Date().toISOString():null;renderManagement();toast(t.status==='done'?'Tarea hecha ✓':'Tarea pendiente')}
+  catch(e){alert('No se pudo cambiar la tarea. '+sqlHint(e))}
+ }
+ async function deleteTask(id){
+  const t=(org.tasks||[]).find(x=>x.id===id);if(!t||!confirm(`¿Eliminar la tarea «${t.title}»?`))return;
+  try{await run(cloudClient.from('group_tasks').delete().eq('id',id));await reloadAndRender();toast('Tarea eliminada')}catch(e){alert('No se pudo eliminar. '+sqlHint(e))}
+ }
+
+ // ---------- Vestuario ----------
+ const WARDROBE_STATUS={ok:'En buen estado',repair:'Necesita arreglo',lost:'Perdida'};
+ function wardrobeMarkup(){
+  const items=org.wardrobe||[];
+  const head=`<div class="vm-org-head"><div><strong>${isManager()?'Inventario de vestuario':'Prendas que tienes tú'}</strong><div class="group-meta">${items.length} ${items.length===1?'prenda':'prendas'}${isManager()?' · '+items.filter(i=>i.status==='repair').length+' para arreglar':''}</div></div>${isManager()?'<button class="btn small" id="vmNewItem">＋ Nueva prenda</button>':''}</div>`;
+  if(!items.length)return head+`<div class="group-empty">${isManager()?'Todavía no hay prendas. Añade la primera con «Nueva prenda».':'No tienes ninguna prenda del grupo a tu nombre.'}</div>`;
+  const groups={};items.forEach(i=>{const c=i.category||'Sin categoría';(groups[c]=groups[c]||[]).push(i)});
+  return head+Object.keys(groups).sort((a,b)=>a.localeCompare(b,'es')).map(c=>`<h3 class="calendar-month">${h(c)}</h3><div class="vm-task-list">${groups[c].map(i=>`<div class="vm-ward ${h(i.status)}"><div class="vm-task-body"><strong>${h(i.name)}${Number(i.quantity)>1?` <small>× ${h(i.quantity)}</small>`:''}</strong><div class="group-meta">${i.size?'Talla '+h(i.size)+' · ':''}${i.holder_name||memberName(i.holder_id)?'👤 '+h(i.holder_name||memberName(i.holder_id)):'En el almacén'}</div>${i.notes?`<p class="vm-task-notes">${h(i.notes)}</p>`:''}</div><span class="vm-ward-status ${h(i.status)}">${WARDROBE_STATUS[i.status]||''}</span>${isManager()?`<div class="vm-task-actions"><button class="btn ghost small" data-vm-item-edit="${h(i.id)}">Editar</button><button class="btn ghost small" data-vm-item-del="${h(i.id)}">Eliminar</button></div>`:''}</div>`).join('')}</div>`).join('');
+ }
+ function openItemEditor(id){
+  if(!isManager())return;
+  const i=(org.wardrobe||[]).find(x=>x.id===id)||{id:newId('item'),name:'',category:'',size:'',quantity:1,holder_id:'',status:'ok',notes:''};
+  const cats=[...new Set((org.wardrobe||[]).map(x=>x.category).filter(Boolean))];
+  const modal=openModal(`<div class="modal-card management-modal"><div class="modal-head"><h2>${id?'Editar prenda':'Nueva prenda'}</h2><button class="icon-btn close-modal">×</button></div><div class="management-form"><label>Prenda<input id="vmItemName" maxlength="160" value="${h(i.name)}" placeholder="Ej. Refajo rojo, chaleco, pañuelo…"></label><div class="form-row"><label>Categoría<input id="vmItemCat" list="vmItemCats" value="${h(i.category)}" placeholder="Mujer, hombre, complementos…"><datalist id="vmItemCats">${cats.map(c=>`<option value="${h(c)}">`).join('')}</datalist></label><label>Talla<input id="vmItemSize" value="${h(i.size)}"></label></div><div class="form-row"><label>Cantidad<input id="vmItemQty" type="number" min="0" value="${h(i.quantity)}"></label><label>Estado<select id="vmItemStatus">${Object.entries(WARDROBE_STATUS).map(([v,l])=>`<option value="${v}" ${i.status===v?'selected':''}>${l}</option>`).join('')}</select></label></div><label>La tiene<select id="vmItemWho">${memberOptions(i.holder_id,'En el almacén')}</select></label><label>Notas<textarea id="vmItemNotes" placeholder="Arreglos, dónde se guarda…">${h(i.notes)}</textarea></label><button class="btn" id="vmItemSave">Guardar prenda</button></div></div>`);
+  modal.querySelector('.close-modal').onclick=closeModal;
+  modal.querySelector('#vmItemSave').onclick=async()=>{
+   const name=modal.querySelector('#vmItemName').value.trim();if(!name)return alert('Escribe el nombre de la prenda.');
+   const who=modal.querySelector('#vmItemWho').value;
+   const row={id:i.id,name,category:modal.querySelector('#vmItemCat').value.trim(),size:modal.querySelector('#vmItemSize').value.trim(),quantity:Math.max(0,parseInt(modal.querySelector('#vmItemQty').value,10)||0),status:modal.querySelector('#vmItemStatus').value,holder_id:who||null,holder_name:who?memberName(who):'',notes:modal.querySelector('#vmItemNotes').value.trim(),updated_at:new Date().toISOString()};
+   const btn=modal.querySelector('#vmItemSave');btn.disabled=true;btn.textContent='Guardando…';
+   try{await run(cloudClient.from('wardrobe_items').upsert(row,{onConflict:'id'}));closeModal();toast('Prenda guardada');await reloadAndRender()}
+   catch(e){alert('No se pudo guardar la prenda. '+sqlHint(e));btn.disabled=false;btn.textContent='Guardar prenda'}
+  };
+ }
+ async function deleteItem(id){
+  const i=(org.wardrobe||[]).find(x=>x.id===id);if(!i||!confirm(`¿Eliminar «${i.name}» del inventario?`))return;
+  try{await run(cloudClient.from('wardrobe_items').delete().eq('id',id));await reloadAndRender();toast('Prenda eliminada')}catch(e){alert('No se pudo eliminar. '+sqlHint(e))}
+ }
+
+ // ---------- Asistencia a ensayos ----------
+ const ATT_LABEL={present:'Presente',absent:'Falta',excused:'Justificada'};
+ function attendanceFor(eventId){return (org.attendance||[]).filter(a=>String(a.event_id)===String(eventId))}
+ function openAttendance(eventId){
+  if(!isManager())return;
+  const e=groupState.events.find(x=>String(x.id)===String(eventId));if(!e)return;
+  if(!(org.members||[]).length)return alert('No se ha podido cargar la lista de miembros. '+(org.members===null?'Falta ejecutar en Supabase el archivo supabase-v465-organizacion.sql.':''));
+  const current=Object.fromEntries(attendanceFor(eventId).map(a=>[String(a.user_id),a.status]));
+  const modal=openModal(`<div class="modal-card management-modal"><div class="modal-head"><h2>Pasar lista</h2><button class="icon-btn close-modal">×</button></div><p class="group-meta">${h(e.title)} · ${h(dateHuman(e.event_date,e.event_time))}</p><div class="vm-att-tools"><button class="btn ghost small" id="vmAttAll">Todos presentes</button><span class="group-meta" id="vmAttCount"></span></div><div class="vm-att-list">${org.members.map(m=>`<div class="vm-att-row" data-vm-att-user="${h(m.user_id)}" data-vm-att-name="${h(m.full_name)}"><span>${h(m.full_name)}${m.member_type?` <small>${h(memberTypeLabel(m.member_type))}</small>`:''}</span><div class="vm-att-buttons">${Object.entries(ATT_LABEL).map(([v,l])=>`<button class="vm-att-btn ${v} ${current[String(m.user_id)]===v?'active':''}" data-vm-att-set="${v}">${l}</button>`).join('')}</div></div>`).join('')}</div><button class="btn" id="vmAttSave">Guardar asistencia</button></div>`);
+  const count=()=>{const n=modal.querySelectorAll('.vm-att-btn.present.active').length;modal.querySelector('#vmAttCount').textContent=n+' de '+org.members.length+' presentes'};
+  modal.querySelectorAll('[data-vm-att-set]').forEach(b=>b.onclick=()=>{const row=b.closest('.vm-att-row');const was=b.classList.contains('active');row.querySelectorAll('.vm-att-btn').forEach(x=>x.classList.remove('active'));if(!was)b.classList.add('active');count()});
+  modal.querySelector('#vmAttAll').onclick=()=>{modal.querySelectorAll('.vm-att-row').forEach(r=>{r.querySelectorAll('.vm-att-btn').forEach(x=>x.classList.remove('active'));r.querySelector('.vm-att-btn.present').classList.add('active')});count()};
+  modal.querySelector('.close-modal').onclick=closeModal;count();
+  modal.querySelector('#vmAttSave').onclick=async()=>{
+   const rows=[...modal.querySelectorAll('.vm-att-row')].map(r=>{const a=r.querySelector('.vm-att-btn.active');return a?{event_id:String(eventId),user_id:r.dataset.vmAttUser,member_name:r.dataset.vmAttName,status:a.dataset.vmAttSet,updated_at:new Date().toISOString()}:null}).filter(Boolean);
+   const cleared=Object.keys(current).filter(uid=>!rows.some(r=>r.user_id===uid));
+   const btn=modal.querySelector('#vmAttSave');btn.disabled=true;btn.textContent='Guardando…';
+   try{
+    if(rows.length)await run(cloudClient.from('event_attendance').upsert(rows,{onConflict:'event_id,user_id'}));
+    for(const uid of cleared)await run(cloudClient.from('event_attendance').delete().eq('event_id',String(eventId)).eq('user_id',uid));
+    closeModal();toast('Asistencia guardada');await reloadAndRender();
+   }catch(err){alert('No se pudo guardar la asistencia. '+sqlHint(err));btn.disabled=false;btn.textContent='Guardar asistencia'}
+  };
+ }
+ function openAttendanceSummary(){
+  if(!isManager())return;
+  const rehearsals=new Set(groupState.events.filter(e=>e.kind==='rehearsal').map(e=>String(e.id)));
+  const marks=(org.attendance||[]).filter(a=>rehearsals.has(String(a.event_id)));
+  const listed=new Set(marks.map(a=>String(a.event_id))).size;
+  const rows=(org.members||[]).map(m=>{const mine=marks.filter(a=>String(a.user_id)===String(m.user_id));const p=mine.filter(a=>a.status==='present').length,x=mine.filter(a=>a.status==='excused').length,f=mine.filter(a=>a.status==='absent').length;return {name:m.full_name,p,x,f,pct:listed?Math.round(p*100/listed):0}}).sort((a,b)=>b.pct-a.pct||a.name.localeCompare(b.name,'es'));
+  const modal=openModal(`<div class="modal-card management-modal"><div class="modal-head"><h2>Asistencia a ensayos</h2><button class="icon-btn close-modal">×</button></div><p class="group-meta">${listed} ${listed===1?'ensayo con lista pasada':'ensayos con lista pasada'}</p>${listed?`<div class="vm-att-summary">${rows.map(r=>`<div class="vm-att-sum-row"><span>${h(r.name)}</span><div class="vm-bar"><i style="width:${r.pct}%"></i></div><b>${r.pct}%</b><small>✓${r.p} · J${r.x} · ✗${r.f}</small></div>`).join('')}</div>`:'<div class="group-empty">Todavía no se ha pasado lista en ningún ensayo.</div>'}</div>`);
+  modal.querySelector('.close-modal').onclick=closeModal;
+ }
+ const previousEventCard=eventCard;
+ eventCard=function(e){
+  let html=previousEventCard.apply(this,arguments);
+  if(e?.kind!=='rehearsal'||org.attendance===null||!signedIn())return html;
+  const marks=attendanceFor(e.id);let extra='';
+  if(isManager()){const p=marks.filter(a=>a.status==='present').length;extra=`<div class="vm-card-att"><span class="group-meta">${marks.length?`Asistencia: ${p} presentes · ${marks.filter(a=>a.status==='excused').length} justificadas · ${marks.filter(a=>a.status==='absent').length} faltas`:'Sin lista pasada'}</span><button class="btn secondary small" data-vm-attendance="${h(e.id)}">✓ Pasar lista</button></div>`}
+  else{const mine=marks.find(a=>String(a.user_id)===myId());if(mine)extra=`<div class="vm-card-att"><span class="vm-att-pill ${h(mine.status)}">Tu asistencia: ${ATT_LABEL[mine.status]}</span></div>`}
+  if(!extra)return html;
+  const i=html.lastIndexOf('</article>');return i>=0?html.slice(0,i)+extra+html.slice(i):html;
+ };
+
+ // ---------- Cumpleaños y aniversario ----------
+ function upcomingBirthdays(days){
+  const today=localToday(),year=Number(today.slice(0,4)),out=[];
+  (org.members||[]).forEach(m=>{if(!m.birthday_md)return;let date=year+'-'+m.birthday_md;if(m.birthday_md==='02-29'&&!(new Date(year,1,29).getMonth()===1))date=year+'-03-01';let n=daysUntil(date);if(n<0){date=(year+1)+'-'+m.birthday_md;n=daysUntil(date)}if(n<=days)out.push({name:m.full_name,date,n})});
+  return out.sort((a,b)=>a.n-b.n);
+ }
+ function anniversary(){
+  const founded=org.settings?.founded_on?.date;if(!founded||!/^\d{4}-\d{2}-\d{2}$/.test(founded))return null;
+  const year=Number(localToday().slice(0,4));let date=year+founded.slice(4);let n=daysUntil(date),years=year-Number(founded.slice(0,4));
+  if(n<0){date=(year+1)+founded.slice(4);n=daysUntil(date);years++}
+  return {date,n,years};
+ }
+ function bannersMarkup(){
+  const parts=[];
+  const ann=anniversary();
+  if(ann&&ann.n===0)parts.push(`<div class="vm-banner gold">🎉 <span><b>¡Hoy el Grupo Folklórico Valdemedel cumple ${ann.years} años!</b></span></div>`);
+  else if(ann&&ann.n<=14)parts.push(`<div class="vm-banner gold">🎉 <span>En ${ann.n===1?'1 día':ann.n+' días'} el grupo cumple <b>${ann.years} años</b> (${h(shortDate(ann.date))}).</span></div>`);
+  const bd=upcomingBirthdays(7);
+  const today=bd.filter(b=>b.n===0),soon=bd.filter(b=>b.n>0);
+  if(today.length)parts.push(`<div class="vm-banner">🎂 <span><b>¡Hoy cumple${today.length>1?'n':''} años ${h(today.map(b=>b.name).join(' y '))}!</b></span></div>`);
+  if(soon.length)parts.push(`<div class="vm-banner soft">🎂 <span>Esta semana: ${soon.map(b=>`<b>${h(b.name)}</b> (${h(shortDate(b.date))})`).join(', ')}</span></div>`);
+  const mine=(org.tasks||[]).filter(t=>String(t.assignee_id||'')===myId()&&t.status!=='done');
+  if(mine.length)parts.push(`<button class="vm-banner task" data-vm-goto-tasks>📋 <span>Tienes <b>${mine.length} ${mine.length===1?'tarea pendiente':'tareas pendientes'}</b>${mine.some(t=>t.due_date&&daysUntil(t.due_date)<0)?' · alguna vencida':''}</span><span aria-hidden="true">›</span></button>`);
+  return parts.length?`<div class="vm-banners">${parts.join('')}</div>`:'';
+ }
+ const previousOpenGroupProfile=openGroupProfile;
+ openGroupProfile=function(){
+  const out=previousOpenGroupProfile.apply(this,arguments);
+  try{
+   if(org.members===null||!signedIn())return out;
+   const form=document.querySelector('.modal.generic-modal .management-form');if(!form||form.querySelector('#vmBirthday'))return out;
+   const me=(org.members||[]).find(m=>String(m.user_id)===myId());
+   form.insertAdjacentHTML('beforeend',`<div class="vm-birthday-box"><label>Cumpleaños (opcional)<input id="vmBirthday" type="date" value="${h(me?.my_birthday||'')}"></label><p class="group-meta">El grupo solo verá el día y el mes, nunca el año.</p><button class="btn secondary" id="vmBirthdaySave">Guardar cumpleaños</button></div>`);
+   form.querySelector('#vmBirthdaySave').onclick=async()=>{const v=form.querySelector('#vmBirthday').value||null;try{const {error}=await cloudClient.rpc('update_my_birthday',{new_birthday:v});if(error)throw error;toast(v?'Cumpleaños guardado 🎂':'Cumpleaños borrado');await loadOrg(true)}catch(e){alert('No se pudo guardar. '+sqlHint(e))}};
+  }catch(e){console.warn('Cumpleaños',e)}
+  return out;
+ };
+ const previousRenderSettings=renderSettings;
+ renderSettings=function(){
+  const out=previousRenderSettings.apply(this,arguments);
+  try{
+   if(state.view!=='settings'||!isTotalAdmin())return out;
+   const grid=document.querySelector('#app .data-grid');if(!grid||grid.querySelector('#vmFounded'))return out;
+   grid.insertAdjacentHTML('beforeend',`<section class="data-card"><h3>Fecha de fundación del grupo</h3><p>Para celebrar el aniversario en la pantalla de inicio.</p><input id="vmFounded" type="date" value="${h(org.settings?.founded_on?.date||'')}"><button class="btn secondary" id="vmFoundedSave" style="margin-top:10px">Guardar fecha</button></section>`);
+   grid.querySelector('#vmFoundedSave').onclick=async()=>{const date=grid.querySelector('#vmFounded').value;if(!date)return alert('Elige la fecha de fundación.');try{await run(cloudClient.from('group_settings').upsert({key:'founded_on',value:{date},updated_at:new Date().toISOString()},{onConflict:'key'}));await loadOrg(true);toast('Fecha de fundación guardada')}catch(e){alert('No se pudo guardar. '+sqlHint(e))}};
+   if(org.settings===null&&!org.lastLoad)loadOrg(true).then(()=>{const i=document.querySelector('#vmFounded');if(i&&!i.value)i.value=org.settings?.founded_on?.date||''});
+  }catch(e){console.warn('Fundación',e)}
+  return out;
+ };
+
+ // ---------- Hoja de ruta de cada actuación ----------
+ const ROUTE_FIELDS=[['meeting_time','Hora de salida','time'],['meeting_place','Punto de encuentro','text'],['transport','Transporte','text'],['arrival_time','Llegada al lugar','time'],['stage_time','Hora de actuación','time'],['return_time','Regreso','time'],['clothing','Vestuario','textarea'],['contact_name','Contacto del organizador','text'],['contact_phone','Teléfono del contacto','tel'],['stage','Escenario y sonido','textarea'],['meals','Comidas','textarea'],['notes','Otras indicaciones','textarea']];
+ const previousFromRow=performanceFromRow;
+ performanceFromRow=function(row){const p=previousFromRow.apply(this,arguments);if(p&&row&&row.route&&typeof row.route==='object')p.route=row.route;return p};
+ function routeHas(p){return Boolean(p?.route&&ROUTE_FIELDS.some(([k])=>String(p.route[k]||'').trim()))}
+ function openRoute(id){
+  const p=(state.performances||[]).find(x=>String(x.id)===String(id));if(!p)return;
+  const r=p.route||{};
+  const value=(k,type)=>{const v=String(r[k]||'').trim();if(!v)return '';if(type==='tel')return `<a href="tel:${h(v.replace(/[^\d+]/g,''))}">${h(v)}</a>`;if(k==='meeting_place')return `${h(v)} · <a href="https://maps.apple.com/?q=${encodeURIComponent(v)}" target="_blank" rel="noopener">Mapa</a>`;return h(v).replace(/\n/g,'<br>')};
+  const rows=ROUTE_FIELDS.map(([k,l,t])=>{const v=value(k,t);return v?`<div class="vm-route-row"><span>${l}</span><div>${v}</div></div>`:''}).join('');
+  const modal=openModal(`<div class="modal-card management-modal"><div class="modal-head"><h2>Hoja de ruta</h2><button class="icon-btn close-modal">×</button></div><p class="group-meta"><b>${h(p.name)}</b>${p.date?' · '+h(dateHuman(p.date)):''}${p.place?' · '+h(p.place):''}</p>${rows?`<div class="vm-route">${rows}</div>`:'<div class="group-empty">Todavía no hay hoja de ruta para esta actuación.</div>'}${isManager()?'<button class="btn" id="vmRouteEdit" style="margin-top:14px">Editar hoja de ruta</button>':''}</div>`);
+  modal.querySelector('.close-modal').onclick=closeModal;
+  const edit=modal.querySelector('#vmRouteEdit');if(edit)edit.onclick=()=>openRouteEditor(id);
+ }
+ function openRouteEditor(id){
+  if(!isManager())return;
+  const p=(state.performances||[]).find(x=>String(x.id)===String(id));if(!p)return;
+  const r=p.route||{};
+  const field=([k,l,t])=>t==='textarea'?`<label>${l}<textarea data-vm-route="${k}">${h(r[k]||'')}</textarea></label>`:`<label>${l}<input data-vm-route="${k}" type="${t}" value="${h(r[k]||'')}"></label>`;
+  const modal=openModal(`<div class="modal-card management-modal"><div class="modal-head"><h2>Editar hoja de ruta</h2><button class="icon-btn close-modal">×</button></div><p class="group-meta"><b>${h(p.name)}</b></p><div class="management-form"><div class="form-row">${field(ROUTE_FIELDS[0])}${field(ROUTE_FIELDS[3])}</div>${field(ROUTE_FIELDS[1])}${field(ROUTE_FIELDS[2])}<div class="form-row">${field(ROUTE_FIELDS[4])}${field(ROUTE_FIELDS[5])}</div>${field(ROUTE_FIELDS[6])}<div class="form-row">${field(ROUTE_FIELDS[7])}${field(ROUTE_FIELDS[8])}</div>${field(ROUTE_FIELDS[9])}${field(ROUTE_FIELDS[10])}${field(ROUTE_FIELDS[11])}<button class="btn" id="vmRouteSave">Guardar hoja de ruta</button></div></div>`);
+  modal.querySelector('.close-modal').onclick=closeModal;
+  modal.querySelector('#vmRouteSave').onclick=async()=>{
+   const route={};modal.querySelectorAll('[data-vm-route]').forEach(i=>{const v=i.value.trim();if(v)route[i.dataset.vmRoute]=v});
+   const btn=modal.querySelector('#vmRouteSave');btn.disabled=true;btn.textContent='Guardando…';
+   try{const {error}=await cloudClient.rpc('set_performance_route',{p_id:String(id),p_route:route});if(error)throw error;p.route=route;persist();closeModal();toast('Hoja de ruta guardada');if(state.view==='performances')renderPerformances();if(state.view==='management')renderManagement();openRoute(id)}
+   catch(e){alert('No se pudo guardar la hoja de ruta. '+sqlHint(e));btn.disabled=false;btn.textContent='Guardar hoja de ruta'}
+  };
+ }
+ const previousRenderPerformances=renderPerformances;
+ renderPerformances=function(){
+  const out=previousRenderPerformances.apply(this,arguments);
+  if(isGuest()||state.view!=='performances'||!signedIn())return out;
+  try{document.querySelectorAll('#app [data-load]').forEach(b=>{const p=(state.performances||[]).find(x=>String(x.id)===String(b.dataset.load));if(!p||(!routeHas(p)&&!(isManager()&&org.members!==null))||b.parentElement.querySelector('[data-vm-route-open]'))return;b.insertAdjacentHTML('afterend',`<button class="btn secondary small" data-vm-route-open="${h(p.id)}">🧭 Hoja de ruta</button>`)});
+   document.querySelectorAll('#app [data-vm-route-open]').forEach(b=>b.onclick=()=>openRoute(b.dataset.vmRouteOpen))}catch(e){console.warn('Hoja de ruta',e)}
+  return out;
+ };
+
+ // ---------- Grupo: cuerpo de las pestañas nuevas, avisos y enlaces ----------
+ const previousRenderManagement=renderManagement;
+ renderManagement=function(){
+  const out=previousRenderManagement.apply(this,arguments);
+  if(isGuest()||state.view!=='management')return out;
+  try{
+   const shell=document.querySelector('#app .group-shell'),tabs=shell?.querySelector('.group-tabs');if(!shell||!tabs)return out;
+   if(groupState.tab==='tasks'||groupState.tab==='wardrobe'){
+    while(tabs.nextSibling)tabs.nextSibling.remove();
+    tabs.insertAdjacentHTML('afterend',`<div class="vm-org-panel">${groupState.tab==='tasks'?(org.tasks===null?'<div class="group-empty">Las tareas todavía no están activadas.</div>':tasksMarkup()):(org.wardrobe===null?'<div class="group-empty">El vestuario todavía no está activado.</div>':wardrobeMarkup())}</div>`);
+   }
+   if(groupState.tab==='upcoming'&&signedIn()){const html=bannersMarkup();if(html){const next=shell.querySelector('.vm-next-card');(next||tabs).insertAdjacentHTML(next?'afterend':'beforebegin',html)}
+    const nextOpen=shell.querySelector('.vm-next-card [data-vm-open^="performance:"]');if(nextOpen){const pid=nextOpen.dataset.vmOpen.slice(12);const p=(state.performances||[]).find(x=>String(x.id)===pid);if(p&&(routeHas(p)||(isManager()&&org.members!==null)))nextOpen.insertAdjacentHTML('afterend',`<button class="btn ghost small" data-vm-route-open="${h(pid)}">🧭 Hoja de ruta</button>`)}}
+   if(groupState.tab==='rehearsals'&&isManager()&&org.attendance!==null)tabs.insertAdjacentHTML('afterend','<div class="vm-org-head"><span class="group-meta">Pulsa «Pasar lista» en cada ensayo.</span><button class="btn ghost small" id="vmAttSummary">📊 Resumen de asistencia</button></div>');
+   const root=document.querySelector('#app');
+   root.querySelectorAll('[data-vm-task-filter]').forEach(b=>b.onclick=()=>{org.taskFilter=b.dataset.vmTaskFilter;renderManagement()});
+   root.querySelectorAll('[data-vm-task-toggle]').forEach(b=>b.onclick=()=>toggleTask(b.dataset.vmTaskToggle));
+   root.querySelectorAll('[data-vm-task-edit]').forEach(b=>b.onclick=()=>openTaskEditor(b.dataset.vmTaskEdit));
+   root.querySelectorAll('[data-vm-task-del]').forEach(b=>b.onclick=()=>deleteTask(b.dataset.vmTaskDel));
+   root.querySelectorAll('[data-vm-item-edit]').forEach(b=>b.onclick=()=>openItemEditor(b.dataset.vmItemEdit));
+   root.querySelectorAll('[data-vm-item-del]').forEach(b=>b.onclick=()=>deleteItem(b.dataset.vmItemDel));
+   root.querySelectorAll('[data-vm-attendance]').forEach(b=>b.onclick=()=>openAttendance(b.dataset.vmAttendance));
+   root.querySelectorAll('[data-vm-route-open]').forEach(b=>b.onclick=()=>openRoute(b.dataset.vmRouteOpen));
+   root.querySelectorAll('[data-vm-goto-tasks]').forEach(b=>b.onclick=()=>{groupState.tab='tasks';org.taskFilter='mine';renderManagement()});
+   const nt=root.querySelector('#vmNewTask');if(nt)nt.onclick=()=>openTaskEditor(null);
+   const ni=root.querySelector('#vmNewItem');if(ni)ni.onclick=()=>openItemEditor(null);
+   const as=root.querySelector('#vmAttSummary');if(as)as.onclick=openAttendanceSummary;
+  }catch(e){console.warn('Organización · Grupo',e)}
+  return out;
+ };
+ window.__vmOrgV465=org;
 })();
