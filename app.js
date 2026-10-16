@@ -1319,7 +1319,7 @@ const refreshCloudPerformancesV429=refreshCloudPerformances;refreshCloudPerforma
    v4.32 · Acceso obligatorio con excepción segura para invitados. Sin sesión aprobada no se
    renderiza ni se muestra ninguna sección de la aplicación.
    ========================================================== */
-const VM_AUTH_GATE_VERSION='4.66';
+const VM_AUTH_GATE_VERSION='4.67';
 function vmGateEl(id){return document.getElementById(id)}
 function vmGateSetScreen(screen,message=''){
  const gate=vmGateEl('authGate'); if(!gate)return;
@@ -2373,12 +2373,12 @@ window.addEventListener('beforeunload',()=>{
  const previousFromRow=performanceFromRow;
  performanceFromRow=function(row){const p=previousFromRow.apply(this,arguments);if(p&&row&&row.route&&typeof row.route==='object')p.route=row.route;return p};
  function routeHas(p){return Boolean(p?.route&&ROUTE_FIELDS.some(([k])=>String(p.route[k]||'').trim()))}
- function openRoute(id){
-  const p=(state.performances||[]).find(x=>String(x.id)===String(id));if(!p)return;
+ function openRoute(id,given){
+  const p=given||(state.performances||[]).find(x=>String(x.id)===String(id));if(!p)return;
   const r=p.route||{};
   const value=(k,type)=>{const v=String(r[k]||'').trim();if(!v)return '';if(type==='tel')return `<a href="tel:${h(v.replace(/[^\d+]/g,''))}">${h(v)}</a>`;if(k==='meeting_place')return `${h(v)} · <a href="https://maps.apple.com/?q=${encodeURIComponent(v)}" target="_blank" rel="noopener">Mapa</a>`;return h(v).replace(/\n/g,'<br>')};
   const rows=ROUTE_FIELDS.map(([k,l,t])=>{const v=value(k,t);return v?`<div class="vm-route-row"><span>${l}</span><div>${v}</div></div>`:''}).join('');
-  const modal=openModal(`<div class="modal-card management-modal"><div class="modal-head"><h2>Hoja de ruta</h2><button class="icon-btn close-modal">×</button></div><p class="group-meta"><b>${h(p.name)}</b>${p.date?' · '+h(dateHuman(p.date)):''}${p.place?' · '+h(p.place):''}</p>${rows?`<div class="vm-route">${rows}</div>`:'<div class="group-empty">Todavía no hay hoja de ruta para esta actuación.</div>'}${isManager()?'<button class="btn" id="vmRouteEdit" style="margin-top:14px">Editar hoja de ruta</button>':''}</div>`);
+  const modal=openModal(`<div class="modal-card management-modal"><div class="modal-head"><h2>Hoja de ruta</h2><button class="icon-btn close-modal">×</button></div><p class="group-meta"><b>${h(p.name)}</b>${p.date?' · '+h(dateHuman(p.date)):''}${p.place?' · '+h(p.place):''}</p>${rows?`<div class="vm-route">${rows}</div>`:'<div class="group-empty">Todavía no hay hoja de ruta para esta actuación.</div>'}${!given&&isManager()?'<button class="btn" id="vmRouteEdit" style="margin-top:14px">Editar hoja de ruta</button>':''}</div>`);
   modal.querySelector('.close-modal').onclick=closeModal;
   const edit=modal.querySelector('#vmRouteEdit');if(edit)edit.onclick=()=>openRouteEditor(id);
  }
@@ -2439,6 +2439,19 @@ window.addEventListener('beforeunload',()=>{
    const ni=root.querySelector('#vmNewItem');if(ni)ni.onclick=()=>openItemEditor(null);
    const as=root.querySelector('#vmAttSummary');if(as)as.onclick=openAttendanceSummary;
   }catch(e){console.warn('Organización · Grupo',e)}
+  return out;
+ };
+ // Invitados: botón de solo lectura en la invitación, si la actuación tiene hoja de ruta.
+ const previousRenderGuestAccess=renderGuestAccess;
+ renderGuestAccess=function(){
+  const out=previousRenderGuestAccess.apply(this,arguments);
+  try{
+   const p=guestAccess?.performance;
+   if(isGuest()&&p&&routeHas(p)&&!document.querySelector('[data-vm-guest-route]')){
+    const bar=document.querySelector('.guest-page .toolbar');
+    if(bar){bar.insertAdjacentHTML('beforeend','<button class="btn secondary" data-vm-guest-route>🧭 Hoja de ruta</button>');bar.querySelector('[data-vm-guest-route]').onclick=()=>openRoute(p.id,p)}
+   }
+  }catch(e){console.warn('Hoja de ruta · invitado',e)}
   return out;
  };
  window.__vmOrgV465=org;

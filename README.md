@@ -1,6 +1,6 @@
-# Cancionero Valdemedel v4.66
+# Cancionero Valdemedel v4.67
 
-Actualización: datos personales de cada miembro (nombre, apellidos, género y teléfono) y vestuario con stock, préstamos y devoluciones confirmadas por la responsable (requiere supabase-v466-datos-y-vestuario.sql).
+Actualización: los invitados pueden ver (sin editar) la hoja de ruta de su actuación desde la invitación.
 
 # Cancionero Valdemedel v4.40
 

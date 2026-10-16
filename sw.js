@@ -1,7 +1,7 @@
-const C='valdemedel-v4.66';
+const C='valdemedel-v4.67';
 // v4.61: nombre fijo para no perder los PDF guardados sin conexión al actualizar.
 const PDF_CACHE='valdemedel-pdfs';
-const A=['./','./index.html','./styles.css?v=4.66','./supabase-config.js?v=4.66','./supabase-lite.js?v=4.66','./app.js?v=4.66','./manifest.webmanifest','./logo-burdeos.png','./logo-blanco.png','./logo-texto.png','./actuacion-infantil.jpeg','./romeria.jpeg','./musicos-historicos.jpeg','./grupo.jpeg','./musicos-escenario.jpeg','./festival.jpeg','./tamborilero.jpeg','./baile.jpeg'];
+const A=['./','./index.html','./styles.css?v=4.67','./supabase-config.js?v=4.67','./supabase-lite.js?v=4.67','./app.js?v=4.67','./manifest.webmanifest','./logo-burdeos.png','./logo-blanco.png','./logo-texto.png','./actuacion-infantil.jpeg','./romeria.jpeg','./musicos-historicos.jpeg','./grupo.jpeg','./musicos-escenario.jpeg','./festival.jpeg','./tamborilero.jpeg','./baile.jpeg'];
 self.addEventListener('install',event=>{self.skipWaiting();event.waitUntil(caches.open(C).then(cache=>cache.addAll(A)))});
 async function movePdfCaches(keys){
  const target=await caches.open(PDF_CACHE);
